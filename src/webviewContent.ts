@@ -107,6 +107,19 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
       flex-shrink: 0;
     }
 
+    .column.dragging {
+      opacity: 0.45;
+    }
+
+    .column-drop-indicator {
+      align-self: stretch;
+      width: 14px;
+      border: 2px dashed var(--accent);
+      border-radius: 5px;
+      background: rgba(14, 99, 156, 0.12);
+      flex-shrink: 0;
+    }
+
     .column-header {
       display: flex;
       align-items: center;
@@ -127,6 +140,24 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
     }
 
     .column-title:hover { background: var(--input-bg); }
+
+    .column-drag-handle {
+      background: transparent;
+      color: var(--fg);
+      border: 1px solid transparent;
+      cursor: grab;
+      flex-shrink: 0;
+      font-size: 12px;
+      line-height: 1;
+      opacity: 0.65;
+      padding: 1px 4px;
+    }
+
+    .column-drag-handle:hover {
+      background: var(--input-bg);
+      border-color: var(--card-border);
+      opacity: 1;
+    }
 
     .column-count {
       background: var(--badge-bg);
@@ -293,6 +324,20 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
     /* Task groups */
     .task-group {
       margin-bottom: 6px;
+      border: 1px solid transparent;
+      border-radius: 5px;
+      padding: 2px;
+      transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .task-group.group-drop-target {
+      background: rgba(106, 27, 154, 0.12);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent) inset;
+    }
+
+    .task-group.dragging {
+      opacity: 0.45;
     }
 
     .group-header {
@@ -317,6 +362,24 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
     .group-chevron {
       font-size: 10px;
       transition: transform 0.15s;
+    }
+
+    .group-drag-handle {
+      background: transparent;
+      color: var(--fg);
+      border: 1px solid transparent;
+      cursor: grab;
+      flex-shrink: 0;
+      font-size: 12px;
+      line-height: 1;
+      opacity: 0.65;
+      padding: 1px 4px;
+    }
+
+    .group-drag-handle:hover {
+      background: var(--input-bg);
+      border-color: var(--card-border);
+      opacity: 1;
     }
 
     .group-chevron.collapsed {
@@ -356,15 +419,26 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
     }
 
     .group-body.drag-over {
-      background: rgba(106, 27, 154, 0.12);
+      background: rgba(106, 27, 154, 0.08);
       border-radius: 4px;
     }
 
     .ungrouped-zone {
-      min-height: 8px;
+      min-height: 42px;
+      padding-top: 2px;
     }
 
     .ungrouped-zone.drag-over {
+      background: rgba(14, 99, 156, 0.1);
+      border-radius: 4px;
+    }
+
+    .column-end-drop-zone {
+      min-height: 34px;
+      margin-top: 2px;
+    }
+
+    .column-end-drop-zone.drag-over {
       background: rgba(14, 99, 156, 0.1);
       border-radius: 4px;
     }
@@ -571,10 +645,13 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
 
     /* Drop indicator */
     .drop-indicator {
-      height: 3px;
-      background: var(--accent);
-      border-radius: 2px;
-      margin: 2px 0;
+      min-height: 58px;
+      border: 2px dashed var(--accent);
+      border-radius: 5px;
+      background: rgba(14, 99, 156, 0.12);
+      box-shadow: 0 0 0 1px rgba(14, 99, 156, 0.18) inset;
+      margin-bottom: 8px;
+      pointer-events: none;
       transition: opacity 0.15s;
     }
   </style>
@@ -588,7 +665,11 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
   const vscode = acquireVsCodeApi();
   let board = ${boardJson};
   let dragData = null;
-  const collapsedGroups = {};
+  let collapsedGroups = {};
+  const savedState = vscode.getState();
+  if (savedState && savedState.collapsedGroups) {
+    collapsedGroups = savedState.collapsedGroups;
+  }
 
   function render() {
     const app = document.getElementById('app');
@@ -612,6 +693,28 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
 
     // Board
     const boardEl = el('div', 'board');
+    boardEl.addEventListener('dragover', (e) => {
+      if (!dragData || dragData.type !== 'column') return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      updateColumnDropIndicator(boardEl, e.clientX);
+    });
+    boardEl.addEventListener('dragleave', (e) => {
+      if (!boardEl.contains(e.relatedTarget)) {
+        removeColumnDropIndicator(boardEl);
+      }
+    });
+    boardEl.addEventListener('drop', (e) => {
+      if (!dragData || dragData.type !== 'column') return;
+      e.preventDefault();
+      const toIndex = getColumnDropIndex(boardEl, e.clientX);
+      removeColumnDropIndicator(boardEl);
+      vscode.postMessage({
+        type: 'moveColumn',
+        name: dragData.column,
+        toIndex,
+      });
+    });
 
     for (const column of board.columns) {
       boardEl.appendChild(renderColumn(column));
@@ -621,7 +724,7 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
     const addColDiv = el('div', 'add-column-placeholder');
     const addColBtn = el('button');
     addColBtn.textContent = '+ Add Column';
-    addColBtn.onclick = () => addColumn();
+    addColBtn.onclick = (event) => addColumn(event.currentTarget);
     addColDiv.appendChild(addColBtn);
     boardEl.appendChild(addColDiv);
 
@@ -630,9 +733,29 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
 
   function renderColumn(column) {
     const colEl = el('div', 'column');
+    colEl.dataset.column = column.name;
 
     // Header
     const header = el('div', 'column-header');
+
+    const columnDragHandle = el('button', 'column-drag-handle');
+    columnDragHandle.textContent = '::';
+    columnDragHandle.title = 'Drag column';
+    columnDragHandle.draggable = true;
+    columnDragHandle.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      ev.preventDefault();
+    });
+    columnDragHandle.addEventListener('dragstart', (e) => {
+      dragData = { type: 'column', column: column.name };
+      colEl.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    columnDragHandle.addEventListener('dragend', () => {
+      colEl.classList.remove('dragging');
+      clearDragState();
+    });
+    header.appendChild(columnDragHandle);
 
     const title = el('span', 'column-title');
     title.textContent = column.name;
@@ -663,10 +786,15 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
     body.dataset.column = column.name;
 
     body.addEventListener('dragover', (e) => {
+      if (dragData && dragData.type === 'column') return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
       body.classList.add('drag-over');
-      updateDropIndicator(body, e.clientY);
+      if (dragData && dragData.type === 'group') {
+        updateGroupDropIndicator(body, e.clientY);
+      } else {
+        updateDropIndicator(body, e.clientY);
+      }
     });
 
     body.addEventListener('dragleave', (e) => {
@@ -677,19 +805,26 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
     });
 
     body.addEventListener('drop', (e) => {
+      if (dragData && dragData.type === 'column') return;
       e.preventDefault();
       body.classList.remove('drag-over');
       removeDropIndicators(body);
 
       if (!dragData) return;
-      const toIndex = getDropIndex(body, e.clientY);
+      if (dragData.type === 'group') {
+        moveGroupTo(body, column.name, e.clientY);
+        return;
+      }
+
+      const toIndex = getDropCards(body).length > 0 ? getDropIndex(body, e.clientY) : column.tasks.length;
 
       vscode.postMessage({
-        type: 'moveTask',
+        type: 'moveTaskToGroup',
         taskId: dragData.taskId,
         fromColumn: dragData.fromColumn,
         toColumn: column.name,
         toIndex: toIndex,
+        group: '',
       });
     });
 
@@ -706,11 +841,31 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
     }
 
     // Render grouped tasks
-    const groupNames = Object.keys(grouped).sort();
+    const groupNames = Object.keys(grouped);
     for (const gName of groupNames) {
       const groupEl = el('div', 'task-group');
+      groupEl.dataset.group = gName;
 
       const gHeader = el('div', 'group-header');
+      const groupDragHandle = el('button', 'group-drag-handle');
+      groupDragHandle.textContent = '::';
+      groupDragHandle.title = 'Drag group';
+      groupDragHandle.draggable = true;
+      groupDragHandle.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        ev.preventDefault();
+      });
+      groupDragHandle.addEventListener('dragstart', (e) => {
+        dragData = { type: 'group', group: gName, fromColumn: column.name };
+        groupEl.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      groupDragHandle.addEventListener('dragend', () => {
+        groupEl.classList.remove('dragging');
+        clearDragState();
+      });
+      gHeader.appendChild(groupDragHandle);
+
       const chevron = el('span', 'group-chevron');
       chevron.textContent = '▼';
       gHeader.appendChild(chevron);
@@ -729,27 +884,44 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
 
       // Group drop target: dropping here assigns the group + handles reorder
       gBody.addEventListener('dragover', (e) => {
+        if (dragData && dragData.type === 'column') return;
         e.preventDefault();
         e.stopPropagation();
         e.dataTransfer.dropEffect = 'move';
+        if (dragData && dragData.type === 'group') {
+          updateGroupDropIndicator(body, e.clientY);
+          return;
+        }
         gBody.classList.add('drag-over');
+        groupEl.classList.add('group-drop-target');
         updateDropIndicator(gBody, e.clientY);
       });
       gBody.addEventListener('dragleave', (e) => {
         if (!gBody.contains(e.relatedTarget)) {
           gBody.classList.remove('drag-over');
+          groupEl.classList.remove('group-drop-target');
           removeDropIndicators(gBody);
         }
       });
       gBody.addEventListener('drop', (e) => {
+        if (dragData && dragData.type === 'column') return;
         e.preventDefault();
         e.stopPropagation();
         gBody.classList.remove('drag-over');
+        groupEl.classList.remove('group-drop-target');
         removeDropIndicators(gBody);
         if (!dragData) return;
+        if (dragData.type === 'group') {
+          moveGroupTo(body, column.name, e.clientY);
+          return;
+        }
+
         const dropIdx = getDropIndex(gBody, e.clientY);
         // Find absolute index in column.tasks for the group
-        const groupTaskIds = grouped[gName].map(t => t.id);
+        const groupTaskIds = grouped[gName]
+          .filter(t => !dragData || t.id !== dragData.taskId)
+          .map(t => t.id);
+        const placement = getTaskPlacement(groupTaskIds, dropIdx);
         let absoluteIdx = 0;
         if (dropIdx < groupTaskIds.length) {
           absoluteIdx = column.tasks.findIndex(t => t.id === groupTaskIds[dropIdx]);
@@ -757,49 +929,52 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
           absoluteIdx = column.tasks.findIndex(t => t.id === groupTaskIds[groupTaskIds.length - 1]) + 1;
         }
         vscode.postMessage({
-          type: 'moveTask',
+          type: 'moveTaskToGroup',
           taskId: dragData.taskId,
           fromColumn: dragData.fromColumn,
           toColumn: column.name,
           toIndex: absoluteIdx,
-        });
-        // Assign group
-        vscode.postMessage({
-          type: 'updateTaskGroup',
-          taskId: dragData.taskId,
+          beforeTaskId: placement.beforeTaskId,
+          afterTaskId: placement.afterTaskId,
           group: gName,
         });
       });
 
       // Also make the group header a drop target
       gHeader.addEventListener('dragover', (e) => {
+        if (dragData && dragData.type === 'column') return;
         e.preventDefault();
         e.stopPropagation();
         e.dataTransfer.dropEffect = 'move';
-        gHeader.style.background = 'rgba(106, 27, 154, 0.35)';
+        if (dragData && dragData.type === 'group') {
+          updateGroupDropIndicator(body, e.clientY);
+          return;
+        }
+        groupEl.classList.add('group-drop-target');
       });
       gHeader.addEventListener('dragleave', (e) => {
         if (!gHeader.contains(e.relatedTarget)) {
-          gHeader.style.background = '';
+          groupEl.classList.remove('group-drop-target');
         }
       });
       gHeader.addEventListener('drop', (e) => {
+        if (dragData && dragData.type === 'column') return;
         e.preventDefault();
         e.stopPropagation();
-        gHeader.style.background = '';
+        groupEl.classList.remove('group-drop-target');
         if (!dragData) return;
-        if (dragData.fromColumn !== column.name) {
-          vscode.postMessage({
-            type: 'moveTask',
-            taskId: dragData.taskId,
-            fromColumn: dragData.fromColumn,
-            toColumn: column.name,
-            toIndex: column.tasks.length,
-          });
+        if (dragData.type === 'group') {
+          moveGroupTo(body, column.name, e.clientY);
+          return;
         }
+
         vscode.postMessage({
-          type: 'updateTaskGroup',
+          type: 'moveTaskToGroup',
           taskId: dragData.taskId,
+          fromColumn: dragData.fromColumn,
+          toColumn: column.name,
+          toIndex: column.tasks.length,
+          afterTaskId: getLastTaskId(grouped[gName], dragData.taskId),
           group: gName,
         });
       });
@@ -823,10 +998,7 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
       gEditBtn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         ev.preventDefault();
-        const newName = prompt('Rename group:', gName);
-        if (newName && newName.trim() && newName.trim() !== gName) {
-          vscode.postMessage({ type: 'renameGroup', oldName: gName, newName: newName.trim(), column: column.name });
-        }
+        openGroupModal(column.name, gName);
       });
       gHeader.appendChild(gEditBtn);
 
@@ -836,6 +1008,7 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
         gBody.classList.toggle('collapsed');
         chevron.classList.toggle('collapsed');
         collapsedGroups[stateKey] = nowCollapsed;
+        vscode.setState({ collapsedGroups });
       });
 
       groupEl.appendChild(gHeader);
@@ -847,9 +1020,14 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
     const ungroupedZone = el('div', 'ungrouped-zone');
 
     ungroupedZone.addEventListener('dragover', (e) => {
+      if (dragData && dragData.type === 'column') return;
       e.preventDefault();
       e.stopPropagation();
       e.dataTransfer.dropEffect = 'move';
+      if (dragData && dragData.type === 'group') {
+        updateGroupDropIndicator(body, e.clientY);
+        return;
+      }
       ungroupedZone.classList.add('drag-over');
       updateDropIndicator(ungroupedZone, e.clientY);
     });
@@ -860,29 +1038,35 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
       }
     });
     ungroupedZone.addEventListener('drop', (e) => {
+      if (dragData && dragData.type === 'column') return;
       e.preventDefault();
       e.stopPropagation();
       ungroupedZone.classList.remove('drag-over');
       removeDropIndicators(ungroupedZone);
       if (!dragData) return;
+      if (dragData.type === 'group') {
+        moveGroupTo(body, column.name, e.clientY);
+        return;
+      }
+
       const dropIdx = getDropIndex(ungroupedZone, e.clientY);
       // Find absolute index in column.tasks for ungrouped area
-      const ungroupedIds = ungrouped.map(t => t.id);
+      const ungroupedIds = ungrouped
+        .filter(t => !dragData || t.id !== dragData.taskId)
+        .map(t => t.id);
+      const placement = getTaskPlacement(ungroupedIds, dropIdx);
       let absoluteIdx = column.tasks.length;
       if (dropIdx < ungroupedIds.length) {
         absoluteIdx = column.tasks.findIndex(t => t.id === ungroupedIds[dropIdx]);
       }
       vscode.postMessage({
-        type: 'moveTask',
+        type: 'moveTaskToGroup',
         taskId: dragData.taskId,
         fromColumn: dragData.fromColumn,
         toColumn: column.name,
         toIndex: absoluteIdx,
-      });
-      // Clear group
-      vscode.postMessage({
-        type: 'updateTaskGroup',
-        taskId: dragData.taskId,
+        beforeTaskId: placement.beforeTaskId,
+        afterTaskId: placement.afterTaskId,
         group: '',
       });
     });
@@ -892,10 +1076,83 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
     }
     body.appendChild(ungroupedZone);
 
+    const columnEndZone = el('div', 'column-end-drop-zone');
+    columnEndZone.title = 'Drop at end of column';
+    columnEndZone.addEventListener('dragover', (e) => {
+      if (dragData && dragData.type === 'column') return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      if (dragData && dragData.type === 'group') {
+        updateGroupDropIndicator(body, e.clientY);
+        return;
+      }
+      columnEndZone.classList.add('drag-over');
+      updateEndDropIndicator(columnEndZone);
+    });
+    columnEndZone.addEventListener('dragleave', (e) => {
+      if (!columnEndZone.contains(e.relatedTarget)) {
+        columnEndZone.classList.remove('drag-over');
+        removeDropIndicators(columnEndZone);
+      }
+    });
+    columnEndZone.addEventListener('drop', (e) => {
+      if (dragData && dragData.type === 'column') return;
+      e.preventDefault();
+      e.stopPropagation();
+      columnEndZone.classList.remove('drag-over');
+      removeDropIndicators(columnEndZone);
+      if (!dragData) return;
+      if (dragData.type === 'group') {
+        moveGroupTo(body, column.name, e.clientY);
+        return;
+      }
+
+      vscode.postMessage({
+        type: 'moveTaskToGroup',
+        taskId: dragData.taskId,
+        fromColumn: dragData.fromColumn,
+        toColumn: column.name,
+        toIndex: column.tasks.length,
+        group: '',
+      });
+    });
+    body.appendChild(columnEndZone);
+
     // Add task button
     const addBtn = el('button', 'add-card-btn');
     addBtn.textContent = '+ Add Task';
     addBtn.onclick = () => openTaskModal(null, column.name);
+    addBtn.addEventListener('dragover', (e) => {
+      if (dragData && dragData.type === 'column') return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      if (dragData && dragData.type === 'group') {
+        updateGroupDropIndicator(body, e.clientY);
+        return;
+      }
+      updateEndDropIndicator(columnEndZone);
+    });
+    addBtn.addEventListener('drop', (e) => {
+      if (dragData && dragData.type === 'column') return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (!dragData) return;
+      if (dragData.type === 'group') {
+        moveGroupTo(body, column.name, e.clientY);
+        return;
+      }
+
+      vscode.postMessage({
+        type: 'moveTaskToGroup',
+        taskId: dragData.taskId,
+        fromColumn: dragData.fromColumn,
+        toColumn: column.name,
+        toIndex: column.tasks.length,
+        group: '',
+      });
+    });
     body.appendChild(addBtn);
 
     colEl.appendChild(body);
@@ -914,16 +1171,14 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
     card.appendChild(dot);
 
     card.addEventListener('dragstart', (e) => {
-      dragData = { taskId: task.id, fromColumn: columnName };
+      dragData = { type: 'card', taskId: task.id, fromColumn: columnName };
       card.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
     });
 
     card.addEventListener('dragend', () => {
       card.classList.remove('dragging');
-      dragData = null;
-      document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-      document.querySelectorAll('.drop-indicator').forEach(el => el.remove());
+      clearDragState();
     });
 
     const titleEl = el('div', 'card-title');
@@ -1008,7 +1263,7 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
   }
 
   function getDropIndex(body, clientY) {
-    const cards = Array.from(body.querySelectorAll('.card'));
+    const cards = getDropCards(body);
     for (let i = 0; i < cards.length; i++) {
       const rect = cards[i].getBoundingClientRect();
       if (clientY < rect.top + rect.height / 2) {
@@ -1019,8 +1274,8 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
   }
 
   function updateDropIndicator(body, clientY) {
-    removeDropIndicators(body);
-    const cards = Array.from(body.querySelectorAll('.card'));
+    removeDropIndicators(document);
+    const cards = getDropCards(body);
     const indicator = el('div', 'drop-indicator');
 
     for (let i = 0; i < cards.length; i++) {
@@ -1031,16 +1286,141 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
       }
     }
     // Insert before the add button
-    const addBtn = body.querySelector('.add-card-btn');
-    if (addBtn) {
-      body.insertBefore(indicator, addBtn);
+    const endZone = body.querySelector('.column-end-drop-zone');
+    if (endZone) {
+      endZone.appendChild(indicator);
     } else {
       body.appendChild(indicator);
     }
   }
 
+  function updateEndDropIndicator(container) {
+    removeDropIndicators(document);
+    container.appendChild(el('div', 'drop-indicator'));
+  }
+
   function removeDropIndicators(container) {
     container.querySelectorAll('.drop-indicator').forEach(el => el.remove());
+  }
+
+  function getDropCards(container) {
+    return Array.from(container.children).filter(child =>
+      child.classList.contains('card') && !child.classList.contains('dragging')
+    );
+  }
+
+  function getTaskPlacement(taskIds, dropIndex) {
+    if (dropIndex < taskIds.length) {
+      return { beforeTaskId: taskIds[dropIndex] };
+    }
+    if (taskIds.length > 0) {
+      return { afterTaskId: taskIds[taskIds.length - 1] };
+    }
+    return {};
+  }
+
+  function getLastTaskId(tasks, draggedTaskId) {
+    const task = [...tasks].reverse().find(t => t.id !== draggedTaskId);
+    return task ? task.id : undefined;
+  }
+
+  function getGroupBlocks(container) {
+    return Array.from(container.children).filter(child =>
+      child.classList.contains('task-group') && !child.classList.contains('dragging')
+    );
+  }
+
+  function getGroupDropIndex(body, clientY) {
+    const groups = getGroupBlocks(body);
+    for (let i = 0; i < groups.length; i++) {
+      const rect = groups[i].getBoundingClientRect();
+      if (clientY < rect.top + rect.height / 2) {
+        return i;
+      }
+    }
+    return groups.length;
+  }
+
+  function updateGroupDropIndicator(body, clientY) {
+    removeDropIndicators(document);
+    const groups = getGroupBlocks(body);
+    const indicator = el('div', 'drop-indicator');
+
+    for (let i = 0; i < groups.length; i++) {
+      const rect = groups[i].getBoundingClientRect();
+      if (clientY < rect.top + rect.height / 2) {
+        body.insertBefore(indicator, groups[i]);
+        return;
+      }
+    }
+
+    const ungroupedZone = body.querySelector('.ungrouped-zone');
+    if (ungroupedZone) {
+      body.insertBefore(indicator, ungroupedZone);
+    } else {
+      body.appendChild(indicator);
+    }
+  }
+
+  function moveGroupTo(body, columnName, clientY) {
+    if (!dragData || dragData.type !== 'group') return;
+    vscode.postMessage({
+      type: 'moveGroup',
+      group: dragData.group,
+      fromColumn: dragData.fromColumn,
+      toColumn: columnName,
+      toGroupIndex: getGroupDropIndex(body, clientY),
+    });
+  }
+
+  function clearDragState() {
+    dragData = null;
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    document.querySelectorAll('.group-drop-target').forEach(el => el.classList.remove('group-drop-target'));
+    document.querySelectorAll('.drop-indicator').forEach(el => el.remove());
+    document.querySelectorAll('.column-drop-indicator').forEach(el => el.remove());
+  }
+
+  function getColumnBlocks(boardEl) {
+    return Array.from(boardEl.children).filter(child =>
+      child.classList.contains('column') && !child.classList.contains('dragging')
+    );
+  }
+
+  function getColumnDropIndex(boardEl, clientX) {
+    const columns = getColumnBlocks(boardEl);
+    for (let i = 0; i < columns.length; i++) {
+      const rect = columns[i].getBoundingClientRect();
+      if (clientX < rect.left + rect.width / 2) {
+        return i;
+      }
+    }
+    return columns.length;
+  }
+
+  function updateColumnDropIndicator(boardEl, clientX) {
+    removeColumnDropIndicator(boardEl);
+    const columns = getColumnBlocks(boardEl);
+    const indicator = el('div', 'column-drop-indicator');
+
+    for (let i = 0; i < columns.length; i++) {
+      const rect = columns[i].getBoundingClientRect();
+      if (clientX < rect.left + rect.width / 2) {
+        boardEl.insertBefore(indicator, columns[i]);
+        return;
+      }
+    }
+
+    const addColumn = boardEl.querySelector('.add-column-placeholder');
+    if (addColumn) {
+      boardEl.insertBefore(indicator, addColumn);
+    } else {
+      boardEl.appendChild(indicator);
+    }
+  }
+
+  function removeColumnDropIndicator(container) {
+    container.querySelectorAll('.column-drop-indicator').forEach(el => el.remove());
   }
 
   // --- Modals ---
@@ -1250,11 +1630,119 @@ export function getWebviewContent(webview: vscode.Webview, board: KanbanBoard): 
     }
   }
 
-  function addColumn() {
-    const name = prompt('New column name:');
-    if (name && name.trim()) {
-      vscode.postMessage({ type: 'addColumn', name: name.trim() });
-    }
+  function openGroupModal(columnName, oldName) {
+    const overlay = el('div', 'modal-overlay');
+    const modal = el('div', 'modal');
+    const title = el('h2');
+    title.textContent = 'Rename Group';
+    modal.appendChild(title);
+
+    modal.appendChild(labelEl('Group name'));
+    const input = el('input');
+    input.type = 'text';
+    input.value = oldName;
+    input.placeholder = 'Group name';
+    modal.appendChild(input);
+
+    const actions = el('div', 'modal-actions');
+    const cancelBtn = el('button', 'secondary');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.type = 'button';
+    cancelBtn.onclick = () => overlay.remove();
+    actions.appendChild(cancelBtn);
+
+    const saveBtn = el('button');
+    saveBtn.textContent = 'Save';
+    saveBtn.type = 'button';
+    saveBtn.onclick = () => {
+      const newName = input.value.trim();
+      if (!newName) {
+        input.focus();
+        return;
+      }
+      if (newName !== oldName) {
+        vscode.postMessage({ type: 'renameGroup', oldName, newName, column: columnName });
+      }
+      overlay.remove();
+    };
+    actions.appendChild(saveBtn);
+    modal.appendChild(actions);
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        saveBtn.click();
+      } else if (e.key === 'Escape') {
+        overlay.remove();
+      }
+    });
+
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    setTimeout(() => {
+      input.focus();
+      input.select();
+    }, 50);
+  }
+
+  function addColumn(button) {
+    const overlay = el('div', 'modal-overlay');
+    const modal = el('div', 'modal');
+    const title = el('h2');
+    title.textContent = 'Add Column';
+    modal.appendChild(title);
+
+    const field = el('div', 'modal-field');
+    const label = labelEl('Column name:');
+    const input = el('input');
+    input.type = 'text';
+    input.placeholder = 'Enter column name';
+    input.style.width = '100%';
+    field.appendChild(label);
+    field.appendChild(input);
+    modal.appendChild(field);
+
+    const actions = el('div', 'modal-actions');
+    const cancelBtn = el('button', 'secondary');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.type = 'button';
+    cancelBtn.onclick = () => overlay.remove();
+    actions.appendChild(cancelBtn);
+
+    const addBtn = el('button');
+    addBtn.textContent = 'Add Column';
+    addBtn.type = 'button';
+    addBtn.onclick = () => {
+      const name = input.value.trim();
+      if (!name) {
+        alert('Column name cannot be empty.');
+        input.focus();
+        return;
+      }
+      if (board.columns.some(c => c.name === name)) {
+        alert('A column with that name already exists.');
+        input.focus();
+        return;
+      }
+      board.columns.push({ name, tasks: [] });
+      render();
+      vscode.postMessage({ type: 'addColumn', name });
+      overlay.remove();
+    };
+    actions.appendChild(addBtn);
+
+    modal.appendChild(actions);
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    const rect = button.getBoundingClientRect();
+    modal.style.position = 'absolute';
+    modal.style.top = (Math.min(rect.bottom + 10, window.innerHeight - modal.offsetHeight - 10)) + 'px';
+    modal.style.left = (Math.min(rect.left, window.innerWidth - modal.offsetWidth - 10)) + 'px';
+
+    setTimeout(() => input.focus(), 50);
   }
 
   // --- Helpers ---

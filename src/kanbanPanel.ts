@@ -8,11 +8,10 @@ export class KanbanPanel {
 
   private readonly _panel: vscode.WebviewPanel;
   private readonly _fileUri: vscode.Uri;
-  private readonly _context: vscode.ExtensionContext;
   private _board: KanbanBoard;
   private _disposables: vscode.Disposable[] = [];
 
-  public static createOrShow(context: vscode.ExtensionContext, fileUri: vscode.Uri) {
+  public static createOrShow(fileUri: vscode.Uri) {
     const key = fileUri.toString();
     const existing = KanbanPanel.panels.get(key);
     if (existing) {
@@ -30,14 +29,13 @@ export class KanbanPanel {
       }
     );
 
-    const kanbanPanel = new KanbanPanel(panel, fileUri, context);
+    const kanbanPanel = new KanbanPanel(panel, fileUri);
     KanbanPanel.panels.set(key, kanbanPanel);
   }
 
-  private constructor(panel: vscode.WebviewPanel, fileUri: vscode.Uri, context: vscode.ExtensionContext) {
+  private constructor(panel: vscode.WebviewPanel, fileUri: vscode.Uri) {
     this._panel = panel;
     this._fileUri = fileUri;
-    this._context = context;
     this._board = { title: '', columns: [] };
 
     this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
@@ -48,15 +46,17 @@ export class KanbanPanel {
       this._disposables
     );
 
-    // Watch for external changes to the file
-    const watcher = vscode.workspace.createFileSystemWatcher(
-      new vscode.RelativePattern(
-        vscode.workspace.getWorkspaceFolder(fileUri)!,
-        vscode.workspace.asRelativePath(fileUri)
-      )
-    );
-    watcher.onDidChange(() => this._loadAndRefresh());
-    this._disposables.push(watcher);
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(fileUri);
+    if (workspaceFolder) {
+      const watcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(
+          workspaceFolder,
+          vscode.workspace.asRelativePath(fileUri)
+        )
+      );
+      watcher.onDidChange(() => this._loadAndRefresh());
+      this._disposables.push(watcher);
+    }
 
     this._loadAndRefresh();
   }
@@ -149,8 +149,30 @@ export class KanbanPanel {
         if (fromCol && toCol) {
           const taskIdx = fromCol.tasks.findIndex(t => t.id === message.taskId);
           if (taskIdx !== -1) {
+            const targetLength = toCol.tasks.length;
             const [task] = fromCol.tasks.splice(taskIdx, 1);
-            const insertIdx = Math.min(message.toIndex ?? toCol.tasks.length, toCol.tasks.length);
+            let insertIdx = this._clampIndex(message.toIndex, targetLength);
+            if (fromCol === toCol && taskIdx < insertIdx) {
+              insertIdx--;
+            }
+            toCol.tasks.splice(insertIdx, 0, task);
+            await this._save();
+            this._sendBoardUpdate();
+          }
+        }
+        break;
+      }
+
+      case 'moveTaskToGroup': {
+        const fromCol = this._board.columns.find(c => c.name === message.fromColumn);
+        const toCol = this._board.columns.find(c => c.name === message.toColumn);
+        if (fromCol && toCol) {
+          const taskIdx = fromCol.tasks.findIndex(t => t.id === message.taskId);
+          if (taskIdx !== -1) {
+            const targetLength = toCol.tasks.length;
+            const [task] = fromCol.tasks.splice(taskIdx, 1);
+            task.group = message.group ?? '';
+            let insertIdx = this._getMoveInsertIndex(toCol, message, targetLength);
             toCol.tasks.splice(insertIdx, 0, task);
             await this._save();
             this._sendBoardUpdate();
@@ -186,6 +208,40 @@ export class KanbanPanel {
         break;
       }
 
+      case 'moveGroup': {
+        const fromCol = this._board.columns.find(c => c.name === message.fromColumn);
+        const toCol = this._board.columns.find(c => c.name === message.toColumn);
+        const groupName = message.group;
+        if (fromCol && toCol && groupName) {
+          const groupTasks = fromCol.tasks.filter(t => t.group === groupName);
+          if (groupTasks.length === 0) {
+            break;
+          }
+
+          fromCol.tasks = fromCol.tasks.filter(t => t.group !== groupName);
+          const targetGroupNames = Array.from(new Set(
+            toCol.tasks
+              .map(t => t.group)
+              .filter((g): g is string => !!g && g !== groupName)
+          ));
+          const groupIndex = this._clampIndex(message.toGroupIndex, targetGroupNames.length);
+          const beforeGroup = targetGroupNames[groupIndex];
+          let insertIdx = 0;
+
+          if (beforeGroup) {
+            insertIdx = toCol.tasks.findIndex(t => t.group === beforeGroup);
+          } else {
+            const lastGroupedIdx = toCol.tasks.reduce((last, task, idx) => task.group ? idx : last, -1);
+            insertIdx = lastGroupedIdx === -1 ? 0 : lastGroupedIdx + 1;
+          }
+
+          toCol.tasks.splice(insertIdx, 0, ...groupTasks);
+          await this._save();
+          this._sendBoardUpdate();
+        }
+        break;
+      }
+
       case 'addColumn': {
         const colName = (message.name || '').trim();
         if (colName && !this._board.columns.find(c => c.name === colName)) {
@@ -208,8 +264,22 @@ export class KanbanPanel {
 
       case 'renameColumn': {
         const col = this._board.columns.find(c => c.name === message.oldName);
-        if (col && message.newName.trim()) {
-          col.name = message.newName.trim();
+        const newName = (message.newName || '').trim();
+        if (col && newName) {
+          col.name = newName;
+          await this._save();
+          this._sendBoardUpdate();
+        }
+        break;
+      }
+
+      case 'moveColumn': {
+        const fromIdx = this._board.columns.findIndex(c => c.name === message.name);
+        if (fromIdx !== -1) {
+          const targetLength = this._board.columns.length;
+          const [column] = this._board.columns.splice(fromIdx, 1);
+          const insertIdx = this._clampIndex(message.toIndex, targetLength - 1);
+          this._board.columns.splice(insertIdx, 0, column);
           await this._save();
           this._sendBoardUpdate();
         }
@@ -229,6 +299,33 @@ export class KanbanPanel {
         break;
       }
     }
+  }
+
+  private _clampIndex(index: unknown, max: number): number {
+    const value = typeof index === 'number' && Number.isFinite(index) ? index : max;
+    return Math.max(0, Math.min(value, max));
+  }
+
+  private _getMoveInsertIndex(
+    column: { tasks: { id: string }[] },
+    message: { [key: string]: any },
+    fallbackLength: number
+  ): number {
+    if (typeof message.beforeTaskId === 'string') {
+      const beforeIdx = column.tasks.findIndex(t => t.id === message.beforeTaskId);
+      if (beforeIdx !== -1) {
+        return beforeIdx;
+      }
+    }
+
+    if (typeof message.afterTaskId === 'string') {
+      const afterIdx = column.tasks.findIndex(t => t.id === message.afterTaskId);
+      if (afterIdx !== -1) {
+        return afterIdx + 1;
+      }
+    }
+
+    return this._clampIndex(message.toIndex, fallbackLength);
   }
 
   private _sendBoardUpdate() {

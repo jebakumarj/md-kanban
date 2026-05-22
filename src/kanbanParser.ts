@@ -108,10 +108,10 @@ export function parseMarkdown(content: string): KanbanBoard {
 
     if (currentTask) {
       // Metadata lines: <!-- key: value -->
-      const metaMatch = line.match(/^<!--\s*(\w+):\s*(.+?)\s*-->$/);
+      const metaMatch = line.match(/^<!--\s*(\w+):\s*(.*?)\s*-->$/);
       if (metaMatch) {
         const key = metaMatch[1].toLowerCase();
-        const val = metaMatch[2];
+        const val = metaMatch[2].trim();
         if (key === 'priority' && ['critical','high','medium','low'].includes(val)) {
           currentTask.priority = val as Priority;
         } else if (key === 'workload' && ['easy','normal','hard','extreme'].includes(val)) {
@@ -120,6 +120,8 @@ export function parseMarkdown(content: string): KanbanBoard {
           currentTask.dueDate = val;
         } else if (key === 'assignee') {
           currentTask.assignee = val;
+        } else if (key === 'group') {
+          currentTask.group = val;
         }
         continue;
       }
@@ -136,7 +138,7 @@ export function parseMarkdown(content: string): KanbanBoard {
 
       // Check for tag line (backtick-wrapped tags)
       const tagMatches = line.match(/`([^`]+)`/g);
-      if (tagMatches && line.trim().replace(/`[^`]+`/g, '').trim() === '') {
+      if (tagMatches && line.trim().replace(/^Tags:\s*/i, '').replace(/`[^`]+`/g, '').trim() === '') {
         currentTask.tags = tagMatches.map(t => t.replace(/`/g, ''));
         continue;
       }
@@ -158,9 +160,22 @@ export function parseMarkdown(content: string): KanbanBoard {
   return board;
 }
 
-function serializeTask(lines: string[], task: KanbanTask): void {
+function serializeTask(lines: string[], task: KanbanTask, needsGroupOverride = false): void {
   lines.push(`#### ${task.title}`);
-  lines.push('');
+  if (needsGroupOverride) {
+    lines.push(`<!-- group: ${task.group} -->`);
+  }
+  if (task.description) {
+    lines.push(task.description);
+  }
+  if (task.subtasks && task.subtasks.length > 0) {
+    for (const st of task.subtasks) {
+      lines.push(`- [${st.done ? 'x' : ' '}] ${st.title}`);
+    }
+  }
+  if (task.tags.length > 0) {
+    lines.push(`Tags: ${task.tags.map(t => `\`${t}\``).join(' ')}`);
+  }
   if (task.priority && task.priority !== 'medium') {
     lines.push(`<!-- priority: ${task.priority} -->`);
   }
@@ -173,20 +188,7 @@ function serializeTask(lines: string[], task: KanbanTask): void {
   if (task.assignee) {
     lines.push(`<!-- assignee: ${task.assignee} -->`);
   }
-  if (task.description) {
-    lines.push(task.description);
-    lines.push('');
-  }
-  if (task.subtasks && task.subtasks.length > 0) {
-    for (const st of task.subtasks) {
-      lines.push(`- [${st.done ? 'x' : ' '}] ${st.title}`);
-    }
-    lines.push('');
-  }
-  if (task.tags.length > 0) {
-    lines.push(task.tags.map(t => `\`${t}\``).join(' '));
-    lines.push('');
-  }
+  lines.push('');
 }
 
 /**
@@ -194,6 +196,10 @@ function serializeTask(lines: string[], task: KanbanTask): void {
  */
 export function serializeToMarkdown(board: KanbanBoard): string {
   const lines: string[] = [];
+  lines.push('<!-- This is a Kanban Board file created with MD Kanban extension -->');
+  lines.push('<!-- GitHub: https://github.com/jebakumarj/md-kanban -->');
+  lines.push('<!-- VS Code Extension: Search "MD Kanban" in the extension store (ID: jeddak.md-kanban) -->');
+  lines.push('');
   lines.push(`# ${board.title}`);
   lines.push('');
 
@@ -201,31 +207,17 @@ export function serializeToMarkdown(board: KanbanBoard): string {
     lines.push(`## ${column.name}`);
     lines.push('');
 
-    // Group tasks by their group field
-    const grouped = new Map<string, KanbanTask[]>();
-    const ungrouped: KanbanTask[] = [];
+    let currentMarkdownGroup = '';
     for (const task of column.tasks) {
       if (task.group) {
-        if (!grouped.has(task.group)) {
-          grouped.set(task.group, []);
+        if (task.group !== currentMarkdownGroup) {
+          lines.push(`### ${task.group}`);
+          lines.push('');
+          currentMarkdownGroup = task.group;
         }
-        grouped.get(task.group)!.push(task);
-      } else {
-        ungrouped.push(task);
-      }
-    }
-
-    // Emit ungrouped tasks first
-    for (const task of ungrouped) {
-      serializeTask(lines, task);
-    }
-
-    // Emit grouped tasks under ### headings
-    for (const [groupName, tasks] of grouped) {
-      lines.push(`### ${groupName}`);
-      lines.push('');
-      for (const task of tasks) {
         serializeTask(lines, task);
+      } else {
+        serializeTask(lines, task, currentMarkdownGroup !== '');
       }
     }
   }

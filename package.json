@@ -9,6 +9,10 @@
     "type": "git",
     "url": "https://github.com/jebakumarj/md-kanban"
   },
+  "bugs": {
+    "url": "https://github.com/jebakumarj/md-kanban/issues"
+  },
+  "homepage": "https://github.com/jebakumarj/md-kanban#readme",
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.109.0"

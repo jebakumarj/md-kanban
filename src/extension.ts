@@ -19,7 +19,7 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       if (files.length === 1) {
-        KanbanPanel.createOrShow(context, files[0]);
+        KanbanPanel.createOrShow(files[0]);
         return;
       }
 
@@ -32,7 +32,7 @@ export function activate(context: vscode.ExtensionContext) {
       );
 
       if (picked) {
-        KanbanPanel.createOrShow(context, picked.uri);
+        KanbanPanel.createOrShow(picked.uri);
       }
     })
   );
@@ -78,7 +78,7 @@ async function createNewBoard(context: vscode.ExtensionContext) {
     await vscode.workspace.fs.writeFile(fileUri, Buffer.from(content, 'utf-8'));
   }
 
-  KanbanPanel.createOrShow(context, fileUri);
+  KanbanPanel.createOrShow(fileUri);
 }
 
 export function deactivate() {}

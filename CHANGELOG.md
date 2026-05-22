@@ -2,6 +2,32 @@
 
 All notable changes to the **MD Kanban** extension will be documented in this file.
 
+## [0.2.0] - Unreleased
+
+### Added
+
+- Trello-style card placement with clear card-sized drop guidelines.
+- Card reordering within groups and ungrouped areas.
+- Drag-and-drop support for moving cards into groups, out of groups, and to the end of a column.
+- Group drag handles for moving whole groups.
+- Column drag handles for reordering columns.
+- Group rename modal.
+- Markdown `<!-- group: NAME -->` and `<!-- group: -->` metadata support for explicit group assignment.
+
+### Changed
+
+- Group order now follows board order instead of alphabetical sorting.
+- Card moves now save placement relative to visible neighboring cards for more reliable same-column reordering.
+- Tags are serialized as `Tags: \`tag\`` lines and parsed back correctly.
+- Column file watching now safely handles boards opened outside a workspace folder.
+
+### Fixed
+
+- Fixed grouped cards snapping back or landing one position off during drag/drop.
+- Fixed dropping cards out of groups.
+- Fixed dropping cards after the last visible card in a column/group.
+- Fixed group edit icon behavior.
+
 ## [0.1.0] - 2026-03-07
 
 ### Added
