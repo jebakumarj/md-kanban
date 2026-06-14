@@ -2,7 +2,7 @@
   "name": "md-kanban",
   "displayName": "MD Kanban",
   "description": "Manage project tasks and todos in a Kanban board view, stored as Markdown files",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "jeddak",
   "license": "MIT",
   "repository": {
@@ -29,7 +29,15 @@
     "project management",
     "board"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onView:md-kanban.boards",
+    "onView:md-kanban.codeTodos",
+    "onCommand:md-kanban.openBoard",
+    "onCommand:md-kanban.createBoard",
+    "onCommand:md-kanban.openBoardFile",
+    "onCommand:md-kanban.refreshBoards",
+    "onCommand:md-kanban.refreshCodeTodos"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
@@ -41,9 +49,84 @@
       {
         "command": "md-kanban.createBoard",
         "title": "Create New Kanban Board",
+        "category": "Kanban",
+        "icon": "$(add)"
+      },
+      {
+        "command": "md-kanban.openBoardFile",
+        "title": "Open Kanban Board",
         "category": "Kanban"
+      },
+      {
+        "command": "md-kanban.refreshBoards",
+        "title": "Refresh Kanban Boards",
+        "category": "Kanban",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "md-kanban.refreshCodeTodos",
+        "title": "Refresh TODOs",
+        "category": "Kanban",
+        "icon": "$(refresh)"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "md-kanban",
+          "title": "MD Kanban",
+          "icon": "src/image/kanban-activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "md-kanban": [
+        {
+          "id": "md-kanban.boards",
+          "name": "Kanban Boards"
+        },
+        {
+          "id": "md-kanban.codeTodos",
+          "name": "TODOs"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "md-kanban.boards",
+        "contents": "No .kanban.md boards found.\n[Create a Kanban Board](command:md-kanban.createBoard)"
+      },
+      {
+        "view": "md-kanban.codeTodos",
+        "contents": "No `// TODO` comments found in this workspace."
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "md-kanban.createBoard",
+          "when": "view == md-kanban.boards",
+          "group": "navigation"
+        },
+        {
+          "command": "md-kanban.refreshBoards",
+          "when": "view == md-kanban.boards",
+          "group": "navigation"
+        },
+        {
+          "command": "md-kanban.refreshCodeTodos",
+          "when": "view == md-kanban.codeTodos",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "md-kanban.openBoardFile",
+          "when": "view == md-kanban.boards && viewItem == kanbanBoard",
+          "group": "inline"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

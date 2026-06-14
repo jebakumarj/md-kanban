@@ -2,6 +2,24 @@
 
 All notable changes to the **MD Kanban** extension will be documented in this file.
 
+## [0.3.0] - 2026-06-14
+
+### Added
+
+- Added support for multiple kanban boards in a single project.
+- Added TODO tracking for workspace source comments.
+- Added an MD Kanban side-panel icon for opening boards and TODOs.
+- Added a **Kanban Boards** side-panel section that lists all `*.kanban.md` boards in the workspace.
+- Added a **TODOs** side-panel section for tracked workspace source TODO comments.
+- Added Explorer-style folder and file hierarchy for TODOs.
+- Added click-to-open navigation from TODO items to their source file and line.
+- Added support for `// TODO`, `/* TODO */`, and JSDoc-style `* TODO` comments.
+- Added custom Activity Bar and TODO checkbox icons.
+
+### Changed
+
+- Updated the README to document the side-panel workflow, multiple boards, and supported TODO formats.
+
 ## [0.2.0] - 2026-05-22
 
 ### Added

@@ -17,9 +17,12 @@ Use it when you want a lightweight project board that lives with your code, work
 
 ![Add task modal](src/image/add-task.png)
 
-### Workflow
+###
 
-[Watch the workflow demo](src/image/workflow.mp4)
+### TODO View
+
+![TODO view](src/image/todo.png)
+
 
 ## Why MD Kanban?
 
@@ -28,10 +31,13 @@ Use it when you want a lightweight project board that lives with your code, work
 - **No external account required** - Use a Kanban board without signing in to another service.
 - **Visual when you want it, text when you need it** - Edit in the board UI or open the Markdown directly.
 - **Built for VS Code workflows** - Manage project work without leaving the editor.
+- **Project-aware** - Open boards and source TODOs from the MD Kanban Activity Bar view.
 
 ## Features
 
 - Visual Kanban board for `.kanban.md` files.
+- MD Kanban Activity Bar view with board and TODO sections.
+- Multiple boards per workspace; every `*.kanban.md` file appears in the side panel.
 - Drag cards between columns, within columns, into groups, out of groups, and to the end of a column.
 - Card-sized drop indicators that show exactly where a card will land.
 - Collapsible task groups backed by Markdown `###` headings.
@@ -39,6 +45,7 @@ Use it when you want a lightweight project board that lives with your code, work
 - Move whole groups with drag-and-drop.
 - Add, rename, reorder, and delete columns.
 - Task fields for description, tags, priority, workload, due date, assignee, and subtasks.
+- Explorer-style TODO tree for `// TODO` and block-comment TODOs found in workspace source files.
 - Priority strips, workload badges, overdue highlighting, and subtask progress.
 - VS Code theme integration.
 - File watching for changes made outside the visual board.
@@ -60,15 +67,18 @@ If you have a packaged `.vsix` file:
 
 ## Quick Start
 
-1. Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`).
-2. Run **Kanban: Create New Kanban Board**.
+1. Open the **MD Kanban** icon in the Activity Bar.
+2. Click **Create New Kanban Board** in the **Kanban Boards** section.
 3. Enter a board name. A `.kanban.md` file is created in your workspace.
-4. Add tasks and drag cards around the board.
+4. Click any board in the side panel to open it.
+5. Add tasks and drag cards around the board.
 
 | Command | Description |
 | --- | --- |
 | `Kanban: Create New Kanban Board` | Create a new `.kanban.md` file with default columns |
 | `Kanban: Open Kanban Board` | Open an existing `.kanban.md` file as a Kanban board |
+
+You can keep more than one board in a workspace. Files such as `frontend.kanban.md`, `backend.kanban.md`, and `release.kanban.md` are listed as separate boards.
 
 ## Using the Board
 
@@ -100,6 +110,24 @@ If you have a packaged `.vsix` file:
 
 - Click **View Markdown** to open the raw board file beside the visual board.
 - Manual Markdown edits are picked up by the board when the file changes.
+
+### TODOs
+
+- In the MD Kanban side panel, the **TODOs** section scans the workspace for source TODO comments.
+- TODOs are grouped by folder and file. Folders and files expand and collapse like the Explorer.
+- File rows use the active VS Code file icon theme. TODO rows use a checked icon and show the line number at the row end.
+- Click a TODO item to open the source file at the matching line.
+- TODOs are separate from `.kanban.md` boards. Edit or remove the original source comment to update them.
+
+Supported TODO comment styles:
+
+```ts
+// TODO Add validation
+/* TODO Add validation */
+/**
+ * TODO Add validation
+ */
+```
 
 ## Markdown Format
 
@@ -189,3 +217,5 @@ Press **F5** in VS Code to launch an Extension Development Host.
 ## License
 
 MIT
+
+Co-authored with Codex
