@@ -229,20 +229,50 @@ Task templates prefill common card fields when adding a task:
 - Choose the target board and column; MD Kanban creates a card with the TODO title, `todo` tag, `source` metadata, backlink, and original TODO text.
 - TODOs are separate from `.kanban.md` boards. Edit or remove the original source comment to update them.
 - Configure scanned files and keywords with `mdKanban.todoInclude`, `mdKanban.todoExclude`, and `mdKanban.todoKeywords`.
+- Keyword matching is case-insensitive, so `todo`, `Todo`, and `TODO` all match the same configured keyword.
+- Very large files over 1 MB and files that look binary are skipped to keep the side panel responsive.
 
 Supported TODO comment styles:
 
-```ts
+```txt
 // TODO Add validation
 // FIXME Handle retry failures
 // BUG Wrong total after filter reset
 // HACK Remove temporary parser fallback
 // NOTE Document release checklist
+const value = 1; // TODO Handle inline comments
+# TODO Add validation
+name=value # TODO Handle inline properties comments
+! TODO Add validation
+; TODO Add validation
+;; TODO Add validation
+SELECT 1 -- TODO Add validation
+REM TODO Add validation
+' TODO Add validation
+% TODO Add validation
+<!-- TODO Add validation -->
 /* TODO Add validation */
 /**
  * TODO Add validation
  */
 ```
+
+Supported prefixes include `//`, `#`, `!`, `;`, `;;`, `--`, `REM`, `'`, `%`, `<!-- -->`, `/* */`, and `*` doc-comment lines. These cover common styles in JavaScript/TypeScript, C-like languages, shell, Python, Ruby, YAML, `.properties`, INI/config files, SQL, Lua, Haskell, HTML/XML/Markdown, Windows batch, VB/VBA, MATLAB, LaTeX, Lisp, and Clojure.
+
+Comment style examples:
+
+| Prefix | Common file types |
+| --- | --- |
+| `// TODO` | JavaScript, TypeScript, Java, C, C++, C#, Go, Rust |
+| `# TODO` | Shell, Python, Ruby, YAML, `.properties` |
+| `! TODO` | `.properties` |
+| `; TODO`, `;; TODO` | INI/config, Lisp, Clojure |
+| `-- TODO` | SQL, Lua, Haskell |
+| `<!-- TODO -->` | HTML, XML, Markdown |
+| `REM TODO` | Windows batch |
+| `' TODO` | VB, VBA |
+| `% TODO` | MATLAB, LaTeX |
+| `/* TODO */`, `* TODO` | Block and doc comments |
 
 Use workspace settings to control scanning per project. Add a `.vscode/settings.json` file in the project:
 
@@ -267,6 +297,14 @@ Use workspace settings to control scanning per project. Add a `.vscode/settings.
 ```
 
 Workspace settings apply only to that project and override user-level defaults.
+
+Troubleshooting TODO scanning:
+
+- Use **Kanban: Refresh TODOs** after changing settings or editing files.
+- Make sure the file matches `mdKanban.todoInclude` and is not matched by `mdKanban.todoExclude`.
+- Check that the keyword is listed in `mdKanban.todoKeywords`.
+- Use one of the supported comment prefixes above; plain text like `TODO fix this` is not shown.
+- Files larger than 1 MB and likely binary files are skipped.
 
 ## Markdown Format
 

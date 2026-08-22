@@ -2,6 +2,16 @@
 
 All notable changes to the **MD Kanban** extension will be documented in this file.
 
+## [0.4.1] - 2026-08-22
+
+### Fixed
+
+- Added TODO scanner support for `#`, `!`, `;`, `;;`, `--`, `REM`, `'`, `%`, and `<!-- -->` comment styles across all configured keywords.
+- Added TODO matcher coverage for inline comment forms such as `code // TODO`, `value # TODO`, and `SQL -- TODO`.
+- Skipped very large and likely binary files during TODO scanning to keep the side panel responsive.
+- Improved the empty TODO side-panel message with settings and refresh guidance.
+- Added no-dependency TODO matcher coverage for supported comment styles.
+
 ## [0.4.0] - 2026-06-21
 
 ### Added

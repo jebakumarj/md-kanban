@@ -2,7 +2,7 @@
   "name": "md-kanban",
   "displayName": "MD Kanban",
   "description": "Manage project tasks and todos in a Kanban board view, stored as Markdown files",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "publisher": "jeddak",
   "license": "MIT",
   "repository": {
@@ -157,7 +157,7 @@
       },
       {
         "view": "md-kanban.codeTodos",
-        "contents": "No configured TODO comments found in this workspace."
+        "contents": "No TODO comments found. Check `mdKanban.todoInclude`, `mdKanban.todoExclude`, and `mdKanban.todoKeywords`, then run **Kanban: Refresh TODOs**."
       },
       {
         "view": "md-kanban.overdueTasks",
@@ -299,6 +299,7 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
+    "test": "npm run compile && node scripts/test-todo-matcher.js",
     "watch": "tsc -watch -p ./"
   },
   "devDependencies": {

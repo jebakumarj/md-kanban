@@ -8,6 +8,7 @@ import {
   parseMarkdown,
   serializeToMarkdown,
 } from './kanbanParser';
+import { getTodoMatch } from './todoMatcher';
 
 class KanbanBoardItem extends vscode.TreeItem {
   constructor(public readonly uri: vscode.Uri) {
@@ -61,6 +62,8 @@ const TODO_DEFAULT_INCLUDE = ['**/*'];
 const TODO_DEFAULT_EXCLUDE = ['**/node_modules/**', '**/out/**', '**/dist/**', '**/build/**', '**/coverage/**'];
 const TODO_REQUIRED_EXCLUDE = ['**/.git/**', '**/*.kanban.md', '**/kanban.md', '**/.kanban.md'];
 const TODO_DEFAULT_KEYWORDS = ['TODO', 'FIXME', 'BUG', 'HACK', 'NOTE'];
+const TODO_MAX_FILE_BYTES = 1024 * 1024;
+const TODO_BINARY_SAMPLE_BYTES = 8000;
 const COMPLETED_COLUMN_DEFAULT_GLOBS = ['Done', 'Closed', 'Shipped', 'Archived'];
 
 type CodeTodoNode = CodeTodoFolderItem | CodeTodoFileItem | CodeTodoItem;
@@ -575,6 +578,9 @@ async function scanCodeTodos(): Promise<CodeTodo[]> {
     let content: string;
     try {
       const data = await vscode.workspace.fs.readFile(uri);
+      if (shouldSkipTodoScanData(data)) {
+        continue;
+      }
       content = Buffer.from(data).toString('utf-8');
     } catch {
       continue;
@@ -1293,6 +1299,10 @@ function globMatches(value: string, glob: string): boolean {
   return regex.test(value);
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function getTodayStart(): Date {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -1400,35 +1410,19 @@ function combineGlobPatterns(patterns: string[]): string | undefined {
   return `{${cleaned.join(',')}}`;
 }
 
-function getTodoMatch(line: string, keywords: string[]): { keyword: string; title: string } | undefined {
-  const keywordPattern = keywords.map(escapeRegExp).join('|');
-  if (!keywordPattern) {
-    return undefined;
+function shouldSkipTodoScanData(data: Uint8Array): boolean {
+  if (data.byteLength > TODO_MAX_FILE_BYTES) {
+    return true;
   }
 
-  const lineCommentMatch = line.match(new RegExp(`//\\s*(${keywordPattern})(?::|\\b)\\s*(.*)$`, 'i'));
-  if (lineCommentMatch) {
-    return {
-      keyword: lineCommentMatch[1].toUpperCase(),
-      title: lineCommentMatch[2].trim(),
-    };
+  const sampleLength = Math.min(data.byteLength, TODO_BINARY_SAMPLE_BYTES);
+  for (let i = 0; i < sampleLength; i++) {
+    if (data[i] === 0) {
+      return true;
+    }
   }
 
-  const blockCommentMatch = line.match(
-    new RegExp(`^\\s*(?:/\\*+\\s*|\\*\\s*)(${keywordPattern})(?::|\\b)\\s*(.*?)(?:\\s*\\*/\\s*)?$`, 'i')
-  );
-  if (blockCommentMatch) {
-    return {
-      keyword: blockCommentMatch[1].toUpperCase(),
-      title: blockCommentMatch[2].trim(),
-    };
-  }
-
-  return undefined;
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return false;
 }
 
 function buildCodeTodoTree(todos: CodeTodo[]): CodeTodoNode[] {
