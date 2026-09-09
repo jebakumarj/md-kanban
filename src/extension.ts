@@ -58,6 +58,7 @@ interface CodeTodo {
   text: string;
 }
 
+const BOARD_DEFAULT_EXCLUDE = ['**/node_modules/**', '**/.direnv/**', '**/.git/**'];
 const TODO_DEFAULT_INCLUDE = ['**/*'];
 const TODO_DEFAULT_EXCLUDE = ['**/node_modules/**', '**/out/**', '**/dist/**', '**/build/**', '**/coverage/**'];
 const TODO_REQUIRED_EXCLUDE = ['**/.git/**', '**/*.kanban.md', '**/kanban.md', '**/.kanban.md'];
@@ -426,6 +427,12 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       if (event.affectsConfiguration('mdKanban.completedColumnGlobs')) {
+        overdueProvider.refresh();
+        calendarProvider.refresh();
+      }
+
+      if (event.affectsConfiguration('mdKanban.boardExclude')) {
+        boardsProvider.refresh();
         overdueProvider.refresh();
         calendarProvider.refresh();
       }
@@ -1357,6 +1364,12 @@ function getTodoScanSettings(): { include: string[]; exclude: string[]; keywords
   };
 }
 
+function getBoardExcludeGlob(): string | undefined {
+  const config = vscode.workspace.getConfiguration('mdKanban');
+  const exclude = uniqueStrings(getStringArraySetting(config, 'boardExclude', BOARD_DEFAULT_EXCLUDE));
+  return combineGlobPatterns(exclude);
+}
+
 function getStringArraySetting(
   config: vscode.WorkspaceConfiguration,
   key: string,
@@ -1633,10 +1646,11 @@ function getErrorMessage(error: unknown): string {
 }
 
 async function findKanbanBoards(limit?: number): Promise<vscode.Uri[]> {
+  const excludeGlob = getBoardExcludeGlob();
   const matches = await Promise.all([
-    vscode.workspace.findFiles('**/*.kanban.md', '**/node_modules/**'),
-    vscode.workspace.findFiles('**/kanban.md', '**/node_modules/**'),
-    vscode.workspace.findFiles('**/.kanban.md', '**/node_modules/**'),
+    vscode.workspace.findFiles('**/*.kanban.md', excludeGlob),
+    vscode.workspace.findFiles('**/kanban.md', excludeGlob),
+    vscode.workspace.findFiles('**/.kanban.md', excludeGlob),
   ]);
   const unique = new Map<string, vscode.Uri>();
   for (const uri of matches.flat()) {

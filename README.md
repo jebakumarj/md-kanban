@@ -43,7 +43,7 @@ Use it when you want a lightweight project board that lives with your code, work
 
 - Visual Kanban board for `.kanban.md` and `kanban.md` files.
 - MD Kanban Activity Bar view with board, TODO, overdue task, and calendar sections.
-- Multiple boards per workspace; every `*.kanban.md` file and `kanban.md` file appears in the side panel.
+- Multiple boards per workspace; every `*.kanban.md` file and `kanban.md` file appears in the side panel. Board discovery excludes `node_modules`, `.direnv`, and `.git` by default; configure with `mdKanban.boardExclude`.
 - Board templates for Blank, Basic, Sprint, Bug Tracker, Release Checklist, and Personal workflows.
 - Filter and search board cards by text, assignee, tag, priority, workload, and due date.
 - Board statistics for card counts, readable per-column chips, overdue cards, workload points, and subtask completion.
@@ -287,6 +287,11 @@ Use workspace settings to control scanning per project. Add a `.vscode/settings.
   "mdKanban.todoInclude": [
     "src/**/*.ts",
     "tests/**/*.ts"
+  ],
+  "mdKanban.boardExclude": [
+    "**/node_modules/**",
+    "**/.direnv/**",
+    "**/.git/**"
   ],
   "mdKanban.completedColumnGlobs": [
     "Done",

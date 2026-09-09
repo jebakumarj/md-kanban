@@ -195,6 +195,18 @@
           },
           "description": "Glob patterns excluded from the MD Kanban TODO side panel scan. Board files and .git are always excluded."
         },
+        "mdKanban.boardExclude": {
+          "type": "array",
+          "default": [
+            "**/node_modules/**",
+            "**/.direnv/**",
+            "**/.git/**"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Glob patterns excluded when discovering *.kanban.md board files for the MD Kanban side panel."
+        },
         "mdKanban.todoKeywords": {
           "type": "array",
           "default": [
