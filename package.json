@@ -2,7 +2,7 @@
   "name": "md-kanban",
   "displayName": "MD Kanban",
   "description": "Manage project tasks and todos in a Kanban board view, stored as Markdown files",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "publisher": "jeddak",
   "license": "MIT",
   "repository": {
@@ -194,6 +194,18 @@
             "type": "string"
           },
           "description": "Glob patterns excluded from the MD Kanban TODO side panel scan. Board files and .git are always excluded."
+        },
+        "mdKanban.boardExclude": {
+          "type": "array",
+          "default": [
+            "**/node_modules/**",
+            "**/.direnv/**",
+            "**/.git/**"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Glob patterns excluded when discovering *.kanban.md board files for the MD Kanban side panel."
         },
         "mdKanban.todoKeywords": {
           "type": "array",

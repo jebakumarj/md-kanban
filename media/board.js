@@ -19,77 +19,6 @@
     deleteSubtask: false,
   };
   let textFilterTimer = 0;
-  const taskTemplates = [
-    {
-      id: 'blank',
-      label: 'Blank',
-      title: '',
-      description: '',
-      tags: [],
-      priority: 'medium',
-      workload: 'normal',
-      assignee: '',
-      subtasks: [],
-    },
-    {
-      id: 'bug',
-      label: 'Bug',
-      title: 'Investigate bug',
-      description: '',
-      tags: ['bug'],
-      priority: 'high',
-      workload: 'normal',
-      assignee: '',
-      subtasks: [
-        { title: 'Reproduce the issue', done: false },
-        { title: 'Identify root cause', done: false },
-        { title: 'Add regression coverage', done: false },
-      ],
-    },
-    {
-      id: 'feature',
-      label: 'Feature',
-      title: 'Build feature',
-      description: '',
-      tags: ['feature'],
-      priority: 'medium',
-      workload: 'hard',
-      assignee: '',
-      subtasks: [
-        { title: 'Define acceptance criteria', done: false },
-        { title: 'Implement changes', done: false },
-        { title: 'Update docs or tests', done: false },
-      ],
-    },
-    {
-      id: 'release',
-      label: 'Release',
-      title: 'Prepare release item',
-      description: '',
-      tags: ['release'],
-      priority: 'high',
-      workload: 'normal',
-      assignee: '',
-      subtasks: [
-        { title: 'Verify build', done: false },
-        { title: 'Update changelog', done: false },
-        { title: 'Confirm rollback notes', done: false },
-      ],
-    },
-    {
-      id: 'personal',
-      label: 'Personal',
-      title: 'Personal task',
-      description: '',
-      tags: ['personal'],
-      priority: 'medium',
-      workload: 'easy',
-      assignee: '',
-      subtasks: [
-        { title: 'Define next action', done: false },
-      ],
-    },
-  ];
   const savedState = vscode.getState();
   if (savedState && savedState.collapsedGroups) {
     collapsedGroups = savedState.collapsedGroups;
@@ -1463,20 +1392,6 @@
     heading.textContent = existingTask ? 'Edit Task' : 'Add Task';
     modal.appendChild(heading);
 
-    let templateSelect = null;
-    if (!existingTask) {
-      modal.appendChild(labelEl('Template'));
-      templateSelect = document.createElement('select');
-      templateSelect.className = 'template-select';
-      taskTemplates.forEach(template => {
-        const opt = document.createElement('option');
-        opt.value = template.id;
-        opt.textContent = template.label;
-        templateSelect.appendChild(opt);
-      });
-      modal.appendChild(templateSelect);
-    }
-
     modal.appendChild(labelEl('Title'));
     const titleInput = el('input');
     titleInput.type = 'text';
@@ -1615,26 +1530,6 @@
     tagsInput.value = existingTask ? existingTask.tags.join(', ') : '';
     tagsInput.placeholder = 'bug, feature, urgent';
     modal.appendChild(tagsInput);
-
-    function applyTaskTemplate(templateId) {
-      const template = taskTemplates.find(t => t.id === templateId);
-      if (!template) return;
-      titleInput.value = template.title || '';
-      descInput.value = template.description || '';
-      assigneeInput.value = template.assignee || '';
-      groupInput.value = '';
-      priSelect.value = template.priority || 'medium';
-      wlSelect.value = template.workload || 'normal';
-      dueDateInput.value = '';
-      sourceInput.value = '';
-      subtasks = (template.subtasks || []).map(st => ({ ...st }));
-      tagsInput.value = (template.tags || []).join(', ');
-      renderSubtasks();
-    }
-
-    if (templateSelect) {
-      templateSelect.onchange = () => applyTaskTemplate(templateSelect.value);
-    }
 
     const actions = el('div', 'modal-actions');
     const cancelBtn = el('button', 'secondary');

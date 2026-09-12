@@ -4,6 +4,11 @@ MD Kanban is a VS Code extension for managing tasks in a visual Kanban board whi
 
 Use it when you want a lightweight project board that lives with your code, works well with Git, and does not require an external service.
 
+[![GitHub stars](https://img.shields.io/github/stars/jebakumarj/md-kanban?style=flat&logo=github&label=stars&color=yellow)](https://github.com/jebakumarj/md-kanban/stargazers)
+[![VS Marketplace installs](https://badgen.net/vs-marketplace/i/jeddak.md-kanban)](https://marketplace.visualstudio.com/items?itemName=jeddak.md-kanban)
+[![VS Marketplace rating](https://badgen.net/vs-marketplace/rating/jeddak.md-kanban)](https://marketplace.visualstudio.com/items?itemName=jeddak.md-kanban&ssr=false#review-details)
+[![Open VSX downloads](https://img.shields.io/open-vsx/dt/jeddak/md-kanban?label=open%20vsx%20downloads)](https://open-vsx.org/extension/jeddak/md-kanban)
+[![Open VSX rating](https://img.shields.io/open-vsx/rating/jeddak/md-kanban?label=open%20vsx%20rating)](https://open-vsx.org/extension/jeddak/md-kanban/reviews)
 ![VS Code](https://img.shields.io/badge/VS%20Code-v1.109%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -43,7 +48,7 @@ Use it when you want a lightweight project board that lives with your code, work
 
 - Visual Kanban board for `.kanban.md` and `kanban.md` files.
 - MD Kanban Activity Bar view with board, TODO, overdue task, and calendar sections.
-- Multiple boards per workspace; every `*.kanban.md` file and `kanban.md` file appears in the side panel.
+- Multiple boards per workspace; every `*.kanban.md` file and `kanban.md` file appears in the side panel. Board discovery excludes `node_modules`, `.direnv`, and `.git` by default; configure with `mdKanban.boardExclude`.
 - Board templates for Blank, Basic, Sprint, Bug Tracker, Release Checklist, and Personal workflows.
 - Filter and search board cards by text, assignee, tag, priority, workload, and due date.
 - Board statistics for card counts, readable per-column chips, overdue cards, workload points, and subtask completion.
@@ -57,7 +62,6 @@ Use it when you want a lightweight project board that lives with your code, work
 - Move whole groups with drag-and-drop.
 - Add, rename, reorder, and delete columns.
 - Task fields for description, tags, priority, workload, due date, assignee, and subtasks.
-- Task templates for quickly starting bug, feature, release, and personal cards.
 - Source metadata links cards back to files and line numbers.
 - Explorer-style TODO tree for configured source comment keywords such as `TODO`, `FIXME`, `BUG`, `HACK`, and `NOTE`.
 - Add source TODO comments to a board as cards with source file and line details.
@@ -110,7 +114,6 @@ Board files also have an **Open Kanban Board** action in the Explorer and editor
 ### Tasks
 
 - Click **+ Add Task** in a column to create a card.
-- Choose a task template to prefill common fields like title, tags, priority, workload, assignee, and subtasks.
 - Click a card to open its details in the center of the board.
 - Source-linked cards show a small source button that opens the referenced file and line.
 - Use card action buttons to edit, archive, delete, or open source when available.
@@ -180,7 +183,7 @@ Note: Add a `.vscode/settings.json` file in the project:
 - Use the column drag handle (`::`) to reorder columns.
 - Use the delete icon to remove a column and its tasks.
 
-### Default Templates
+### Board Templates
 
 Board templates define the initial columns for a new `.kanban.md` file:
 
@@ -192,16 +195,6 @@ Board templates define the initial columns for a new `.kanban.md` file:
 | Bug Tracker | `Triage`, `Confirmed`, `In Progress`, `Verify`, `Closed` |
 | Release Checklist | `Planned`, `In Progress`, `Blocked`, `Ready`, `Shipped` |
 | Personal | `Today`, `This Week`, `Waiting`, `Done` |
-
-Task templates prefill common card fields when adding a task:
-
-| Template | Title | Tags | Priority | Workload | Default subtasks |
-| --- | --- | --- | --- | --- | --- |
-| Blank | Empty | None | `medium` | `normal` | None |
-| Bug | `Investigate bug` | `bug` | `high` | `normal` | Reproduce the issue; Identify root cause; Add regression coverage |
-| Feature | `Build feature` | `feature` | `medium` | `hard` | Define acceptance criteria; Implement changes; Update docs or tests |
-| Release | `Prepare release item` | `release` | `high` | `normal` | Verify build; Update changelog; Confirm rollback notes |
-| Personal | `Personal task` | `personal` | `medium` | `easy` | Define next action |
 
 ### Markdown View
 
@@ -287,6 +280,11 @@ Use workspace settings to control scanning per project. Add a `.vscode/settings.
   "mdKanban.todoInclude": [
     "src/**/*.ts",
     "tests/**/*.ts"
+  ],
+  "mdKanban.boardExclude": [
+    "**/node_modules/**",
+    "**/.direnv/**",
+    "**/.git/**"
   ],
   "mdKanban.completedColumnGlobs": [
     "Done",
@@ -399,6 +397,40 @@ npm run compile
 ```
 
 Press **F5** in VS Code to launch an Extension Development Host.
+
+### Tests
+
+```bash
+npm test
+```
+
+This compiles the extension and runs the checks in `scripts/`.
+
+### Project Structure
+
+```
+src/
+  extension.ts        Activation, side-panel registration, and commands
+  kanbanPanel.ts      Board webview panel and message handling
+  webviewContent.ts   Board webview HTML and styles
+  kanbanParser.ts     Markdown parsing and serialization
+  boardCommands.ts    Board creation and TODO-to-card commands
+  archive.ts          Card archiving into archive.kanban.md
+  source.ts           Card source metadata navigation
+  todoMatcher.ts      TODO comment matching
+  boards/             Board file lookup and dated-task scanning
+  todo/               Workspace TODO scanning
+  util/               Date, glob, and settings helpers
+  views/              Side-panel tree and webview providers
+media/
+  board.js            Board webview script
+  calendar.js         Calendar and Timeline side-panel script
+```
+
+Webview pages run under a Content-Security-Policy that blocks inline scripts, so
+webview JavaScript belongs in `media/` and is loaded with a `webview.asWebviewUri`
+reference. Page data is passed in through a `<script type="application/json">`
+block rather than string interpolation into executable code.
 
 ## Requirements
 

@@ -2,6 +2,24 @@
 
 All notable changes to the **MD Kanban** extension will be documented in this file.
 
+## [0.4.2] - 2026-09-12
+
+### Added
+
+- Added the `mdKanban.boardExclude` setting for glob patterns excluded when discovering board files, defaulting to `**/node_modules/**`, `**/.direnv/**`, and `**/.git/**`. This keeps vendored and cached content, such as `nix-direnv` flake input caches, from appearing as boards in the side panel. Thanks to [@goremil](https://github.com/goremil) ([#4](https://github.com/jebakumarj/md-kanban/pull/4), fixes [#2](https://github.com/jebakumarj/md-kanban/issues/2)).
+
+### Removed
+
+- Removed the **Template** field from the Add Task window. Adding and editing a card now show the same fields.
+
+### Changed
+
+- Calendar and Timeline side-panel views now use the same Content-Security-Policy as the board view, with their webview code loaded from `media/calendar.js` instead of running as inline scripts.
+- Calendar, Timeline, and Overdue Tasks now share a single workspace board scan, so refreshing the Calendar view reads each board file once instead of twice.
+- Reorganized the extension source into focused modules for board files, dated-task scanning, TODO scanning, side-panel views, and board commands.
+
+The changes in this section are internal and do not affect board behavior. Board templates for new `.kanban.md` files are unchanged.
+
 ## [0.4.1] - 2026-08-22
 
 ### Fixed
