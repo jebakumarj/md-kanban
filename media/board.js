@@ -294,6 +294,32 @@
     };
   }
 
+  // Group a dragged card should land in when it is dropped on an ungrouped area.
+  // Dropping on the ungrouped area of its own column removes the card from its group,
+  // which is how cards are ungrouped. Moving to a different column keeps the group, and
+  // the group is recreated in the target column if it is not there yet.
+  function getUngroupedDropGroup(targetColumnName) {
+    if (!dragData) {
+      return '';
+    }
+    return dragData.fromColumn === targetColumnName ? '' : (dragData.group || '');
+  }
+
+  function getGroupOptions() {
+    const groups = new Set();
+    for (const task of getAllTasks()) {
+      if (task.group) groups.add(task.group);
+    }
+    return Array.from(groups).sort((a, b) => a.localeCompare(b));
+  }
+
+  function parseTagInput(value) {
+    return String(value || '')
+      .split(',')
+      .map(tag => tag.trim())
+      .filter(Boolean);
+  }
+
   function getFilterOptions() {
     const assignees = new Set();
     const tags = new Set();
@@ -495,7 +521,7 @@
         fromColumn: dragData.fromColumn,
         toColumn: column.name,
         toIndex: toIndex,
-        group: '',
+        group: getUngroupedDropGroup(column.name),
       });
     });
 
@@ -738,7 +764,7 @@
         toIndex: absoluteIdx,
         beforeTaskId: placement.beforeTaskId,
         afterTaskId: placement.afterTaskId,
-        group: '',
+        group: getUngroupedDropGroup(column.name),
       });
     });
 
@@ -791,7 +817,7 @@
         fromColumn: dragData.fromColumn,
         toColumn: column.name,
         toIndex: column.tasks.length,
-        group: '',
+        group: getUngroupedDropGroup(column.name),
       });
     });
     body.appendChild(columnEndZone);
@@ -827,7 +853,7 @@
         fromColumn: dragData.fromColumn,
         toColumn: column.name,
         toIndex: column.tasks.length,
-        group: '',
+        group: getUngroupedDropGroup(column.name),
       });
     });
     body.appendChild(addBtn);
@@ -850,7 +876,7 @@
 
     card.addEventListener('dragstart', (e) => {
       cardWasDragged = true;
-      dragData = { type: 'card', taskId: task.id, fromColumn: columnName };
+      dragData = { type: 'card', taskId: task.id, fromColumn: columnName, group: task.group || '' };
       card.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
     });
@@ -1423,7 +1449,17 @@
     groupInput.type = 'text';
     groupInput.value = existingTask ? (existingTask.group || '') : '';
     groupInput.placeholder = 'e.g. login, auth...';
+    groupInput.setAttribute('list', 'group-name-options');
     grpCol.appendChild(groupInput);
+
+    const groupOptions = document.createElement('datalist');
+    groupOptions.id = 'group-name-options';
+    for (const name of getGroupOptions()) {
+      const option = document.createElement('option');
+      option.value = name;
+      groupOptions.appendChild(option);
+    }
+    grpCol.appendChild(groupOptions);
     row0.appendChild(grpCol);
 
     modal.appendChild(row0);
@@ -1530,6 +1566,42 @@
     tagsInput.value = existingTask ? existingTask.tags.join(', ') : '';
     tagsInput.placeholder = 'bug, feature, urgent';
     modal.appendChild(tagsInput);
+
+    const tagOptions = getFilterOptions().tags;
+    const tagSuggestions = el('div', 'tag-suggestions');
+    const tagChips = [];
+    for (const tag of tagOptions) {
+      const chip = el('button', 'tag-suggestion');
+      chip.type = 'button';
+      chip.textContent = tag;
+      chip.title = 'Add or remove this tag';
+      chip.onclick = () => {
+        const current = parseTagInput(tagsInput.value);
+        const index = current.indexOf(tag);
+        if (index === -1) {
+          current.push(tag);
+        } else {
+          current.splice(index, 1);
+        }
+        tagsInput.value = current.join(', ');
+        syncTagChips();
+      };
+      tagChips.push({ tag, chip });
+      tagSuggestions.appendChild(chip);
+    }
+
+    function syncTagChips() {
+      const current = parseTagInput(tagsInput.value);
+      for (const entry of tagChips) {
+        entry.chip.classList.toggle('active', current.indexOf(entry.tag) !== -1);
+      }
+    }
+
+    if (tagOptions.length > 0) {
+      tagsInput.addEventListener('input', syncTagChips);
+      syncTagChips();
+      modal.appendChild(tagSuggestions);
+    }
 
     const actions = el('div', 'modal-actions');
     const cancelBtn = el('button', 'secondary');

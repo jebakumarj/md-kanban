@@ -942,6 +942,34 @@ export function getWebviewContent(
       min-height: 60px;
     }
 
+    .tag-suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: -6px 0 12px;
+    }
+
+    .tag-suggestion {
+      background: var(--input-bg);
+      color: var(--fg);
+      border: 1px solid var(--card-border);
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      line-height: 1.2;
+      cursor: pointer;
+    }
+
+    .tag-suggestion:hover {
+      border-color: var(--accent);
+    }
+
+    .tag-suggestion.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
     .modal .remember-row {
       display: flex;
       align-items: center;

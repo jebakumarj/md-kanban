@@ -4,8 +4,14 @@ All notable changes to the **MD Kanban** extension will be documented in this fi
 
 ## [0.4.2] - 2026-09-12
 
+### Fixed
+
+- Dragging a card to a different column no longer clears its group. The group moves with the card and is recreated in the target column when needed. Dropping a card on the ungrouped area of its own column still removes it from the group. Reported by [@dome23svw](https://github.com/dome23svw) ([#3](https://github.com/jebakumarj/md-kanban/issues/3)).
+
 ### Added
 
+- Added group suggestions to the **Group** field in the add and edit task dialog, listing groups already used on the board. ([#3](https://github.com/jebakumarj/md-kanban/issues/3))
+- Added clickable tag chips below the **Tags** field for tags already used on the board, so existing tags can be added or removed without retyping them. ([#3](https://github.com/jebakumarj/md-kanban/issues/3))
 - Added the `mdKanban.boardExclude` setting for glob patterns excluded when discovering board files, defaulting to `**/node_modules/**`, `**/.direnv/**`, and `**/.git/**`. This keeps vendored and cached content, such as `nix-direnv` flake input caches, from appearing as boards in the side panel. Thanks to [@goremil](https://github.com/goremil) ([#4](https://github.com/jebakumarj/md-kanban/pull/4), fixes [#2](https://github.com/jebakumarj/md-kanban/issues/2)).
 
 ### Removed

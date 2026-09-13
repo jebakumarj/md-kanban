@@ -57,7 +57,8 @@ Use it when you want a lightweight project board that lives with your code, work
 - Archive individual cards into a workspace `archive.kanban.md` board.
 - Drag cards between columns, within columns, into groups, out of groups, and to the end of a column.
 - Card-sized drop indicators that show exactly where a card will land.
-- Collapsible task groups backed by Markdown `###` headings.
+- Collapsible task groups backed by Markdown `###` headings, kept when cards move between columns.
+- Group suggestions and tag chips in the task dialog, built from groups and tags already on the board.
 - Rename groups with a modal; all cards in that group are updated together.
 - Move whole groups with drag-and-drop.
 - Add, rename, reorder, and delete columns.
@@ -120,6 +121,8 @@ Board files also have an **Open Kanban Board** action in the Explorer and editor
 - Archive actions use an orange archive button; delete actions use a red trash button.
 - In the card details view, use Edit, Open Source, Archive, or Delete; close the view with the top-right `X`.
 - Add title, description, tags, priority, workload, due date, assignee, group, and subtasks.
+- The **Group** field suggests groups already used on the board; pick one or type a new name.
+- Tags already used on the board appear as chips below the **Tags** field; click one to add or remove it.
 - Archive and delete actions ask for confirmation, with an option to stop asking again for that action.
 - Drag cards to reorder them or move them between columns and groups.
 - Use the blue dashed drop indicator to see where the card will land.
@@ -172,7 +175,8 @@ Note: Add a `.vscode/settings.json` file in the project:
 - Click the group edit icon to rename a group.
 - Use the group drag handle (`::`) to move a whole group.
 - Drop cards into a group to assign them.
-- Drop cards into the ungrouped area or column end to remove them from a group.
+- Drop cards into the ungrouped area or column end of the *same* column to remove them from a group.
+- Dragging a card to a *different* column keeps its group; the group is created in that column if it is not there yet.
 
 ### Columns
 
@@ -350,6 +354,10 @@ This task is explicitly ungrouped even though it appears after a group heading.
 | `###` | Task group |
 | `####` | Task |
 
+The same group can appear under more than one column. Moving a grouped card to another
+column adds a matching `###` heading there, so a board file can hold several `### Sprint 1`
+sections, one per column that has cards in that group.
+
 ### Board Metadata
 
 Board-level metadata is stored as HTML comments near the top of the file.
@@ -441,4 +449,4 @@ block rather than string interpolation into executable code.
 
 MIT
 
-Co-authored with Codex
+Co-authored with AI
