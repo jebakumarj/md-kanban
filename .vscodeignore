@@ -11,3 +11,6 @@ tsconfig.json
 *.vsix
 **/*.ts
 **/*.map
+# Project boards for developing MD Kanban itself; templates and archives are created at runtime.
+archive.kanban.md
+md-kanban.kanban.md
