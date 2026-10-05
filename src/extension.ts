@@ -75,6 +75,7 @@ export function activate(context: vscode.ExtensionContext) {
       if (event.affectsConfiguration('mdKanban.completedColumnGlobs')) {
         overdueProvider.refresh();
         calendarProvider.refresh();
+        KanbanPanel.refreshConfig();
       }
 
       if (event.affectsConfiguration('mdKanban.boardExclude')) {

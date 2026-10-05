@@ -3,6 +3,7 @@ import { KanbanBoard } from './kanbanParser';
 
 export interface WebviewBoardConfig {
   canArchiveCards: boolean;
+  completedColumnGlobs: string[];
 }
 
 export function getWebviewContent(
@@ -286,6 +287,46 @@ export function getWebviewContent(
 
     .column.dragging {
       opacity: 0.45;
+    }
+
+    .column.collapsed {
+      min-width: 0;
+      width: 44px;
+      align-self: stretch;
+      cursor: pointer;
+    }
+
+    .column.collapsed:hover {
+      background: var(--input-bg);
+    }
+
+    .column.collapsed .column-header {
+      flex-direction: column;
+      justify-content: flex-start;
+      padding: 10px 4px;
+    }
+
+    .column.collapsed .column-title {
+      flex: 0 0 auto;
+      writing-mode: vertical-rl;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .column.collapsed .column-title:hover { background: transparent; }
+
+    .column-collapse-btn {
+      background: transparent;
+      color: var(--fg);
+      font-size: 16px;
+      line-height: 1;
+      opacity: 0.65;
+      padding: 0 6px 2px;
+    }
+
+    .column-collapse-btn:hover {
+      background: var(--input-bg);
+      opacity: 1;
     }
 
     .column-drop-indicator {

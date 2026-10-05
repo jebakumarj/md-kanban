@@ -2,7 +2,7 @@
   "name": "md-kanban",
   "displayName": "MD Kanban",
   "description": "Manage project tasks and todos in a Kanban board view, stored as Markdown files",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "publisher": "jeddak",
   "license": "MIT",
   "repository": {
@@ -232,7 +232,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Column-name glob patterns treated as completed when scanning overdue Kanban tasks."
+          "description": "Column-name glob patterns treated as completed. Cards in these columns are not shown or counted as overdue."
         }
       }
     },

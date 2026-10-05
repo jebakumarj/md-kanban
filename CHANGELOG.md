@@ -2,6 +2,17 @@
 
 All notable changes to the **MD Kanban** extension will be documented in this file.
 
+## [0.4.3] - Unreleased
+
+### Fixed
+
+- Cards in completed columns (`mdKanban.completedColumnGlobs`) are no longer marked red as overdue on the board, counted in the **Overdue** summary stat, or matched by the **Overdue** quick chip and `Due: overdue` filter. Changing the setting updates open boards right away. Reported by [@dome23svw](https://github.com/dome23svw) ([#5](https://github.com/jebakumarj/md-kanban/issues/5)).
+
+### Added
+
+- Added collapsible columns. Use the `‹` icon in a column header to shrink a column to a narrow strip, and click the strip to expand it. Collapsed columns can still be reordered with their drag handle, but cards and groups cannot be dropped into them. Collapsed state is remembered for the open board. ([#5](https://github.com/jebakumarj/md-kanban/issues/5))
+- The board now scrolls automatically while you drag a card, group, or column near its edge, so it can reach columns that are off screen. ([#5](https://github.com/jebakumarj/md-kanban/issues/5))
+
 ## [0.4.2] - 2026-09-13
 
 ### Fixed

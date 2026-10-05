@@ -2,7 +2,8 @@ import * as vscode from 'vscode';
 import { archiveTaskFromBoard } from './archive';
 import { parseMarkdown, serializeToMarkdown, KanbanBoard, generateId } from './kanbanParser';
 import { openTaskSource } from './source';
-import { getWebviewContent } from './webviewContent';
+import { getCompletedColumnGlobs } from './util/settings';
+import { getWebviewContent, WebviewBoardConfig } from './webviewContent';
 
 export class KanbanPanel {
   public static readonly viewType = 'mdKanban.boardView';
@@ -94,7 +95,7 @@ export class KanbanPanel {
         this._panel.webview,
         this._extensionUri,
         this._board,
-        { canArchiveCards: !isArchiveBoardFile(this._fileUri) }
+        this._getWebviewConfig()
       );
       if (this._pendingTaskId) {
         const taskId = this._pendingTaskId;
@@ -406,6 +407,23 @@ export class KanbanPanel {
     }
 
     return this._clampIndex(message.toIndex, fallbackLength);
+  }
+
+  private _getWebviewConfig(): WebviewBoardConfig {
+    return {
+      canArchiveCards: !isArchiveBoardFile(this._fileUri),
+      completedColumnGlobs: getCompletedColumnGlobs(),
+    };
+  }
+
+  /** Pushes settings that affect board rendering to every open board. */
+  public static refreshConfig() {
+    for (const panel of KanbanPanel.panels.values()) {
+      panel._panel.webview.postMessage({
+        type: 'configUpdate',
+        config: panel._getWebviewConfig(),
+      });
+    }
   }
 
   private _sendBoardUpdate() {

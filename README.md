@@ -126,6 +126,7 @@ Board files also have an **Open Kanban Board** action in the Explorer and editor
 - Archive and delete actions ask for confirmation, with an option to stop asking again for that action.
 - Drag cards to reorder them or move them between columns and groups.
 - Use the blue dashed drop indicator to see where the card will land.
+- While dragging a card, group, or column, move the pointer near the edge of the board to scroll it.
 
 ### Summary And Filters
 
@@ -141,6 +142,7 @@ Board files also have an **Open Kanban Board** action in the Explorer and editor
 - The **Overdue Tasks** side-panel view groups overdue cards by due date.
 - Cards are overdue when their `due` date is before today.
 - Completed-style columns are skipped. Default completed column globs are `Done`, `Closed`, `Shipped`, and `Archived`.
+- On the board, cards in completed columns are not marked red as overdue, counted in the **Overdue** summary stat, or matched by the overdue filter.
 - Configure completed column name globs with `mdKanban.completedColumnGlobs`; `*` and `?` wildcards are supported.
 - Click an overdue card to open its source Kanban board and show the card details view.
 - Run **Kanban: Show Overdue Tasks** to focus the reminder list.
@@ -185,6 +187,7 @@ Note: Add a `.vscode/settings.json` file in the project:
 - Click **+ Add Column** to create a column.
 - Click a column title to rename it.
 - Use the column drag handle (`::`) to reorder columns.
+- Click the collapse icon (`‹`) in a column header to shrink it to a narrow strip; click the strip to expand it again. Collapsed columns can still be dragged to reorder them, but cards and groups cannot be dropped into them.
 - Use the delete icon to remove a column and its tasks.
 
 ### Board Templates

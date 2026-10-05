@@ -1,9 +1,10 @@
 (function() {
   const vscode = acquireVsCodeApi();
   let board = JSON.parse(document.getElementById('board-data').textContent || '{"title":"Kanban Board","columns":[]}');
-  const boardConfig = JSON.parse(document.getElementById('board-config')?.textContent || '{"canArchiveCards":true}');
+  let boardConfig = JSON.parse(document.getElementById('board-config')?.textContent || '{"canArchiveCards":true}');
   let dragData = null;
   let collapsedGroups = {};
+  let collapsedColumns = {};
   let filters = {
     text: '',
     assignee: '',
@@ -22,6 +23,9 @@
   const savedState = vscode.getState();
   if (savedState && savedState.collapsedGroups) {
     collapsedGroups = savedState.collapsedGroups;
+  }
+  if (savedState && savedState.collapsedColumns) {
+    collapsedColumns = savedState.collapsedColumns;
   }
   if (savedState && savedState.filters) {
     filters = { ...filters, ...savedState.filters };
@@ -251,41 +255,48 @@
   }
 
   function persistState() {
-    vscode.setState({ collapsedGroups, filters, confirmationPrefs });
+    vscode.setState({ collapsedGroups, collapsedColumns, filters, confirmationPrefs });
   }
 
   function getAllTasks() {
     return board.columns.flatMap(column => column.tasks);
   }
 
+  function getVisibleTasks(column) {
+    return column.tasks.filter(task => matchesFilters(task, column.name));
+  }
+
   function getBoardStats() {
     const today = getToday();
     const allTasks = getAllTasks();
-    const visibleTasks = allTasks.filter(matchesFilters);
+    let visibleCards = 0;
     let overdueCards = 0;
     let workloadTotal = 0;
     let completedSubtasks = 0;
     let totalSubtasks = 0;
 
-    for (const task of visibleTasks) {
-      if (isOverdue(task.dueDate, today)) {
-        overdueCards++;
-      }
-      workloadTotal += getWorkloadPoints(task.workload);
-      for (const subtask of task.subtasks || []) {
-        totalSubtasks++;
-        if (subtask.done) {
-          completedSubtasks++;
+    for (const column of board.columns) {
+      for (const task of getVisibleTasks(column)) {
+        visibleCards++;
+        if (isOverdue(task.dueDate, column.name, today)) {
+          overdueCards++;
+        }
+        workloadTotal += getWorkloadPoints(task.workload);
+        for (const subtask of task.subtasks || []) {
+          totalSubtasks++;
+          if (subtask.done) {
+            completedSubtasks++;
+          }
         }
       }
     }
 
     return {
       totalCards: allTasks.length,
-      visibleCards: visibleTasks.length,
+      visibleCards,
       columnCounts: board.columns.map(column => ({
         name: column.name,
-        count: column.tasks.filter(matchesFilters).length,
+        count: getVisibleTasks(column).length,
       })),
       overdueCards,
       workloadTotal,
@@ -336,7 +347,7 @@
     };
   }
 
-  function matchesFilters(task) {
+  function matchesFilters(task, columnName) {
     if (filters.text) {
       const needle = filters.text.toLowerCase();
       const haystack = [
@@ -358,7 +369,7 @@
     if (filters.tag && !(task.tags || []).includes(filters.tag)) return false;
     if (filters.priority && !matchesPriorityFilter(task.priority, filters.priority)) return false;
     if (filters.workload && !matchesWorkloadFilter(task.workload, filters.workload)) return false;
-    if (filters.due && !matchesDueFilter(task.dueDate, filters.due)) return false;
+    if (filters.due && !matchesDueFilter(task.dueDate, columnName, filters.due)) return false;
 
     return true;
   }
@@ -375,7 +386,7 @@
     return current === value;
   }
 
-  function matchesDueFilter(dueDate, value) {
+  function matchesDueFilter(dueDate, columnName, value) {
     if (value === 'no due date') return !dueDate;
     if (!dueDate) return false;
 
@@ -383,7 +394,7 @@
     const due = new Date(dueDate + 'T00:00:00');
     if (Number.isNaN(due.getTime())) return false;
 
-    if (value === 'overdue') return due < today;
+    if (value === 'overdue') return isOverdue(dueDate, columnName, today);
     if (value === 'today') return due.getTime() === today.getTime();
     if (value === 'upcoming') return due > today;
     return dueDate === value;
@@ -395,10 +406,26 @@
     return today;
   }
 
-  function isOverdue(dueDate, today) {
-    if (!dueDate) return false;
+  // Cards in completed columns (mdKanban.completedColumnGlobs) are never overdue.
+  function isOverdue(dueDate, columnName, today) {
+    if (!dueDate || isCompletedColumn(columnName)) return false;
     const due = new Date(dueDate + 'T00:00:00');
     return !Number.isNaN(due.getTime()) && due < today;
+  }
+
+  // Mirrors isCompletedColumnName/globMatches in the extension: case-insensitive,
+  // whole-name match where * matches any run of characters and ? matches one.
+  function isCompletedColumn(columnName) {
+    const name = String(columnName || '').trim();
+    return (boardConfig.completedColumnGlobs || []).some(glob => {
+      const pattern = String(glob || '').trim();
+      if (!pattern) return false;
+      const source = pattern
+        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/\\\*/g, '.*')
+        .replace(/\\\?/g, '.');
+      return new RegExp('^' + source + '$', 'i').test(name);
+    });
   }
 
   function getWorkloadPoints(workload) {
@@ -419,14 +446,7 @@
     return value.charAt(0).toUpperCase() + value.slice(1);
   }
 
-  function renderColumn(column) {
-    const colEl = el('div', 'column');
-    colEl.dataset.column = column.name;
-    const visibleTasks = column.tasks.filter(matchesFilters);
-
-    // Header
-    const header = el('div', 'column-header');
-
+  function renderColumnDragHandle(column, colEl) {
     const columnDragHandle = el('button', 'column-drag-handle');
     columnDragHandle.textContent = '::';
     columnDragHandle.title = 'Drag column';
@@ -444,7 +464,66 @@
       colEl.classList.remove('dragging');
       clearDragState();
     });
-    header.appendChild(columnDragHandle);
+    return columnDragHandle;
+  }
+
+  function renderColumnCount(column, visibleTasks) {
+    const count = el('span', 'column-count');
+    count.textContent = hasActiveFilters()
+      ? visibleTasks.length + '/' + column.tasks.length
+      : String(column.tasks.length);
+    return count;
+  }
+
+  function setColumnCollapsed(columnName, collapsed) {
+    if (collapsed) {
+      collapsedColumns[columnName] = true;
+    } else {
+      delete collapsedColumns[columnName];
+    }
+    persistState();
+    render();
+  }
+
+  // A collapsed column is a narrow strip that can still be dragged to reorder columns,
+  // but it is not a drop target for cards or groups. Its strip has no dragover handler
+  // that calls preventDefault, so the browser shows a no-drop cursor over it.
+  function renderCollapsedColumn(column) {
+    const colEl = el('div', 'column collapsed');
+    colEl.dataset.column = column.name;
+    colEl.title = 'Expand "' + column.name + '"';
+    colEl.addEventListener('click', () => setColumnCollapsed(column.name, false));
+
+    const header = el('div', 'column-header');
+    header.appendChild(renderColumnDragHandle(column, colEl));
+
+    const expandBtn = el('button', 'column-collapse-btn');
+    expandBtn.textContent = '›';
+    expandBtn.title = 'Expand column';
+    header.appendChild(expandBtn);
+
+    header.appendChild(renderColumnCount(column, getVisibleTasks(column)));
+
+    const title = el('span', 'column-title');
+    title.textContent = column.name;
+    header.appendChild(title);
+
+    colEl.appendChild(header);
+    return colEl;
+  }
+
+  function renderColumn(column) {
+    if (collapsedColumns[column.name]) {
+      return renderCollapsedColumn(column);
+    }
+
+    const colEl = el('div', 'column');
+    colEl.dataset.column = column.name;
+    const visibleTasks = getVisibleTasks(column);
+
+    // Header
+    const header = el('div', 'column-header');
+    header.appendChild(renderColumnDragHandle(column, colEl));
 
     const title = el('span', 'column-title');
     title.textContent = column.name;
@@ -452,13 +531,15 @@
     title.onclick = () => renameColumn(column.name);
     header.appendChild(title);
 
-    const count = el('span', 'column-count');
-    count.textContent = hasActiveFilters()
-      ? visibleTasks.length + '/' + column.tasks.length
-      : String(column.tasks.length);
-    header.appendChild(count);
+    header.appendChild(renderColumnCount(column, visibleTasks));
 
     const colActions = el('div', 'column-actions');
+    const collapseBtn = el('button', 'column-collapse-btn');
+    collapseBtn.textContent = '‹';
+    collapseBtn.title = 'Collapse column';
+    collapseBtn.onclick = () => setColumnCollapsed(column.name, true);
+    colActions.appendChild(collapseBtn);
+
     const delColBtn = el('button');
     delColBtn.textContent = '✕';
     delColBtn.title = 'Delete column';
@@ -915,11 +996,9 @@
     // Due date
     if (task.dueDate) {
       const due = el('div', 'card-due');
-      const today = new Date(); today.setHours(0,0,0,0);
-      const dueDate = new Date(task.dueDate + 'T00:00:00');
-      const isOverdue = dueDate < today;
-      if (isOverdue) due.classList.add('overdue');
-      due.textContent = '📅 ' + task.dueDate + (isOverdue ? ' (overdue)' : '');
+      const overdue = isOverdue(task.dueDate, columnName, getToday());
+      if (overdue) due.classList.add('overdue');
+      due.textContent = '📅 ' + task.dueDate + (overdue ? ' (overdue)' : '');
       card.appendChild(due);
     }
 
@@ -1358,7 +1437,61 @@
     });
   }
 
+  // Scroll the page while a card, group, or column is dragged near the viewport edges,
+  // so it can reach columns that are off screen. Listeners use the capture phase because
+  // the drop zones stop dragover/drop propagation. dragover keeps firing while the pointer
+  // is still, and the animation frame loop scrolls smoothly between those events.
+  const AUTO_SCROLL_EDGE = 60;
+  const AUTO_SCROLL_MAX_STEP = 24;
+  const AUTO_SCROLL_IDLE_MS = 500;
+  let autoScrollPointer = null;
+  let autoScrollFrame = 0;
+
+  document.addEventListener('dragover', (e) => {
+    if (!dragData) return;
+    autoScrollPointer = { x: e.clientX, y: e.clientY, time: Date.now() };
+    if (!autoScrollFrame) {
+      autoScrollFrame = window.requestAnimationFrame(runAutoScroll);
+    }
+  }, true);
+  document.addEventListener('drop', stopAutoScroll, true);
+  document.addEventListener('dragend', stopAutoScroll, true);
+
+  function runAutoScroll() {
+    autoScrollFrame = 0;
+    // Stop when dragover goes quiet, e.g. the pointer left the webview.
+    if (!dragData || !autoScrollPointer || Date.now() - autoScrollPointer.time > AUTO_SCROLL_IDLE_MS) {
+      return;
+    }
+    const dx = getAutoScrollStep(autoScrollPointer.x, window.innerWidth);
+    const dy = getAutoScrollStep(autoScrollPointer.y, window.innerHeight);
+    if (dx || dy) {
+      window.scrollBy(dx, dy);
+      autoScrollFrame = window.requestAnimationFrame(runAutoScroll);
+    }
+  }
+
+  // Speed ramps up the closer the pointer is to the edge.
+  function getAutoScrollStep(position, size) {
+    if (position < AUTO_SCROLL_EDGE) {
+      return -Math.ceil(AUTO_SCROLL_MAX_STEP * (AUTO_SCROLL_EDGE - position) / AUTO_SCROLL_EDGE);
+    }
+    if (position > size - AUTO_SCROLL_EDGE) {
+      return Math.ceil(AUTO_SCROLL_MAX_STEP * (position - (size - AUTO_SCROLL_EDGE)) / AUTO_SCROLL_EDGE);
+    }
+    return 0;
+  }
+
+  function stopAutoScroll() {
+    autoScrollPointer = null;
+    if (autoScrollFrame) {
+      window.cancelAnimationFrame(autoScrollFrame);
+      autoScrollFrame = 0;
+    }
+  }
+
   function clearDragState() {
+    stopAutoScroll();
     dragData = null;
     document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
     document.querySelectorAll('.group-drop-target').forEach(el => el.classList.remove('group-drop-target'));
@@ -1814,6 +1947,9 @@
     const msg = event.data;
     if (msg.type === 'boardUpdate') {
       board = msg.board;
+      render();
+    } else if (msg.type === 'configUpdate') {
+      boardConfig = { ...boardConfig, ...msg.config };
       render();
     } else if (msg.type === 'openTaskDetails') {
       openTaskDetailsById(msg.taskId);
