@@ -949,8 +949,19 @@ export function getWebviewContent(
       margin-bottom: 0;
     }
 
-    .confirm-modal {
+    .confirm-modal,
+    .text-input-modal {
       width: 360px;
+    }
+
+    .modal-error {
+      color: var(--danger-hover);
+      font-size: 12px;
+      margin: -6px 0 10px;
+    }
+
+    .modal-error:empty {
+      display: none;
     }
 
     .confirm-message {

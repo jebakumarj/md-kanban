@@ -7,6 +7,10 @@ All notable changes to the **MD Kanban** extension will be documented in this fi
 ### Fixed
 
 - Cards in completed columns (`mdKanban.completedColumnGlobs`) are no longer marked red as overdue on the board, counted in the **Overdue** summary stat, or matched by the **Overdue** quick chip and `Due: overdue` filter. Changing the setting updates open boards right away. Reported by [@dome23svw](https://github.com/dome23svw) ([#5](https://github.com/jebakumarj/md-kanban/issues/5)).
+- Renaming the board or a column now opens an in-board dialog instead of a browser prompt, which VS Code webviews do not show. **Add Column** shows validation messages inside its dialog instead of browser alerts.
+- A column can no longer be renamed to the name of another column on the same board. Column names are compared without regard to case for both renaming and **Add Column**, so `To Do` and `to do` count as the same name. A column can still be renamed to change only its own casing.
+- Opening a card from the Overdue Tasks or Calendar view now expands its column and group if they are collapsed, so the card is scrolled into view.
+- Collapsed columns and groups stay collapsed after the column or group is renamed.
 
 ### Added
 

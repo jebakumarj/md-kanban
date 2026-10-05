@@ -1187,6 +1187,13 @@
     }
 
     document.querySelectorAll('.modal-overlay').forEach(overlay => overlay.remove());
+    // Expand the card's column and group so it can be scrolled into view.
+    const groupKey = found.column.name + '::' + found.task.group;
+    if (collapsedColumns[found.column.name] || (found.task.group && collapsedGroups[groupKey])) {
+      delete collapsedColumns[found.column.name];
+      if (found.task.group) delete collapsedGroups[groupKey];
+      persistState();
+    }
     render();
     const cardEl = document.querySelector('[data-task-id="' + cssEscape(taskId) + '"]');
     if (cardEl) {
@@ -1798,34 +1805,106 @@
   }
 
   function renameBoard() {
-    const newTitle = prompt('Board title:', board.title);
-    if (newTitle && newTitle.trim()) {
-      vscode.postMessage({ type: 'updateTitle', title: newTitle.trim() });
-      board.title = newTitle.trim();
-      render();
-    }
+    openTextInputModal({
+      title: 'Rename Board',
+      label: 'Board title',
+      value: board.title,
+      placeholder: 'Board title',
+      confirmText: 'Save',
+      validate: (title) => title ? '' : 'Board title cannot be empty.',
+      onSubmit: (title) => {
+        if (title === board.title) return;
+        vscode.postMessage({ type: 'updateTitle', title });
+        board.title = title;
+        render();
+      },
+    });
   }
 
   function renameColumn(oldName) {
-    const newName = prompt('Column name:', oldName);
-    if (newName && newName.trim() && newName.trim() !== oldName) {
-      vscode.postMessage({ type: 'renameColumn', oldName, newName: newName.trim() });
-    }
+    openTextInputModal({
+      title: 'Rename Column',
+      label: 'Column name',
+      value: oldName,
+      placeholder: 'Column name',
+      confirmText: 'Save',
+      validate: (name) => {
+        if (!name) return 'Column name cannot be empty.';
+        if (isColumnNameTaken(name, oldName)) {
+          return 'A column with that name already exists.';
+        }
+        return '';
+      },
+      onSubmit: (newName) => {
+        if (newName === oldName) return;
+        moveCollapsedColumnState(oldName, newName);
+        vscode.postMessage({ type: 'renameColumn', oldName, newName });
+      },
+    });
   }
 
   function openGroupModal(columnName, oldName) {
+    openTextInputModal({
+      title: 'Rename Group',
+      label: 'Group name',
+      value: oldName,
+      placeholder: 'Group name',
+      confirmText: 'Save',
+      validate: (name) => name ? '' : 'Group name cannot be empty.',
+      onSubmit: (newName) => {
+        if (newName === oldName) return;
+        moveCollapsedGroupState(columnName, oldName, newName);
+        vscode.postMessage({ type: 'renameGroup', oldName, newName, column: columnName });
+      },
+    });
+  }
+
+  function addColumn(button) {
+    openTextInputModal({
+      title: 'Add Column',
+      label: 'Column name',
+      value: '',
+      placeholder: 'Enter column name',
+      confirmText: 'Add Column',
+      anchor: button,
+      validate: (name) => {
+        if (!name) return 'Column name cannot be empty.';
+        if (isColumnNameTaken(name)) return 'A column with that name already exists.';
+        return '';
+      },
+      onSubmit: (name) => {
+        board.columns.push({ name, tasks: [] });
+        render();
+        vscode.postMessage({ type: 'addColumn', name });
+      },
+    });
+  }
+
+  // Column names are compared case-insensitively, so "To Do" and "to do" count as the same
+  // column. exceptName is the column being renamed, which may change only its casing.
+  function isColumnNameTaken(name, exceptName) {
+    const key = name.toLowerCase();
+    return board.columns.some(c => c.name !== exceptName && c.name.toLowerCase() === key);
+  }
+
+  // Single-field modal used instead of prompt()/alert(), which VS Code webviews block.
+  // validate(value) returns an error message to show inline, or '' when the value is valid.
+  function openTextInputModal(options) {
     const overlay = el('div', 'modal-overlay');
-    const modal = el('div', 'modal');
+    const modal = el('div', 'modal text-input-modal');
     const title = el('h2');
-    title.textContent = 'Rename Group';
+    title.textContent = options.title;
     modal.appendChild(title);
 
-    modal.appendChild(labelEl('Group name'));
+    modal.appendChild(labelEl(options.label));
     const input = el('input');
     input.type = 'text';
-    input.value = oldName;
-    input.placeholder = 'Group name';
+    input.value = options.value || '';
+    input.placeholder = options.placeholder || '';
     modal.appendChild(input);
+
+    const error = el('div', 'modal-error');
+    modal.appendChild(error);
 
     const actions = el('div', 'modal-actions');
     const cancelBtn = el('button', 'secondary');
@@ -1835,22 +1914,23 @@
     actions.appendChild(cancelBtn);
 
     const saveBtn = el('button');
-    saveBtn.textContent = 'Save';
+    saveBtn.textContent = options.confirmText;
     saveBtn.type = 'button';
     saveBtn.onclick = () => {
-      const newName = input.value.trim();
-      if (!newName) {
+      const value = input.value.trim();
+      const message = options.validate ? options.validate(value) : '';
+      if (message) {
+        error.textContent = message;
         input.focus();
         return;
       }
-      if (newName !== oldName) {
-        vscode.postMessage({ type: 'renameGroup', oldName, newName, column: columnName });
-      }
       overlay.remove();
+      options.onSubmit(value);
     };
     actions.appendChild(saveBtn);
     modal.appendChild(actions);
 
+    input.addEventListener('input', () => { error.textContent = ''; });
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -1863,69 +1943,47 @@
     overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
+
+    if (options.anchor) {
+      const rect = options.anchor.getBoundingClientRect();
+      modal.style.position = 'absolute';
+      modal.style.top = (Math.min(rect.bottom + 10, window.innerHeight - modal.offsetHeight - 10)) + 'px';
+      modal.style.left = (Math.min(rect.left, window.innerWidth - modal.offsetWidth - 10)) + 'px';
+    }
+
     setTimeout(() => {
       input.focus();
       input.select();
     }, 50);
   }
 
-  function addColumn(button) {
-    const overlay = el('div', 'modal-overlay');
-    const modal = el('div', 'modal');
-    const title = el('h2');
-    title.textContent = 'Add Column';
-    modal.appendChild(title);
-
-    const field = el('div', 'modal-field');
-    const label = labelEl('Column name:');
-    const input = el('input');
-    input.type = 'text';
-    input.placeholder = 'Enter column name';
-    input.style.width = '100%';
-    field.appendChild(label);
-    field.appendChild(input);
-    modal.appendChild(field);
-
-    const actions = el('div', 'modal-actions');
-    const cancelBtn = el('button', 'secondary');
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.type = 'button';
-    cancelBtn.onclick = () => overlay.remove();
-    actions.appendChild(cancelBtn);
-
-    const addBtn = el('button');
-    addBtn.textContent = 'Add Column';
-    addBtn.type = 'button';
-    addBtn.onclick = () => {
-      const name = input.value.trim();
-      if (!name) {
-        alert('Column name cannot be empty.');
-        input.focus();
-        return;
+  // Collapsed columns and groups are remembered by name, so carry that state over on rename.
+  function moveCollapsedColumnState(oldName, newName) {
+    if (collapsedColumns[oldName]) {
+      collapsedColumns[newName] = true;
+      delete collapsedColumns[oldName];
+    }
+    const column = board.columns.find(c => c.name === oldName);
+    const groupNames = new Set(column ? column.tasks.map(t => t.group).filter(Boolean) : []);
+    for (const groupName of groupNames) {
+      const oldKey = oldName + '::' + groupName;
+      if (oldKey in collapsedGroups) {
+        collapsedGroups[newName + '::' + groupName] = collapsedGroups[oldKey];
+        delete collapsedGroups[oldKey];
       }
-      if (board.columns.some(c => c.name === name)) {
-        alert('A column with that name already exists.');
-        input.focus();
-        return;
-      }
-      board.columns.push({ name, tasks: [] });
-      render();
-      vscode.postMessage({ type: 'addColumn', name });
-      overlay.remove();
-    };
-    actions.appendChild(addBtn);
+    }
+    persistState();
+  }
 
-    modal.appendChild(actions);
-    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
-    overlay.appendChild(modal);
-    document.body.appendChild(overlay);
-
-    const rect = button.getBoundingClientRect();
-    modal.style.position = 'absolute';
-    modal.style.top = (Math.min(rect.bottom + 10, window.innerHeight - modal.offsetHeight - 10)) + 'px';
-    modal.style.left = (Math.min(rect.left, window.innerWidth - modal.offsetWidth - 10)) + 'px';
-
-    setTimeout(() => input.focus(), 50);
+  function moveCollapsedGroupState(columnName, oldName, newName) {
+    const oldKey = columnName + '::' + oldName;
+    const newKey = columnName + '::' + newName;
+    // Renaming onto an existing group merges the cards; keep that group's own state.
+    if (oldKey in collapsedGroups && !(newKey in collapsedGroups)) {
+      collapsedGroups[newKey] = collapsedGroups[oldKey];
+    }
+    delete collapsedGroups[oldKey];
+    persistState();
   }
 
   // --- Helpers ---

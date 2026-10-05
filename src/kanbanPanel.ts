@@ -272,7 +272,7 @@ export class KanbanPanel {
 
       case 'addColumn': {
         const colName = (message.name || '').trim();
-        if (colName && !this._board.columns.find(c => c.name === colName)) {
+        if (colName && !this._isColumnNameTaken(colName)) {
           this._board.columns.push({ name: colName, tasks: [] });
           await this._save();
           this._sendBoardUpdate();
@@ -293,7 +293,7 @@ export class KanbanPanel {
       case 'renameColumn': {
         const col = this._board.columns.find(c => c.name === message.oldName);
         const newName = (message.newName || '').trim();
-        if (col && newName) {
+        if (col && newName && newName !== col.name && !this._isColumnNameTaken(newName, col)) {
           col.name = newName;
           await this._save();
           this._sendBoardUpdate();
@@ -380,6 +380,13 @@ export class KanbanPanel {
         break;
       }
     }
+  }
+
+  // Column names identify columns in every board operation, so they must stay unique,
+  // ignoring case. `except` is the column being renamed, which may change only its casing.
+  private _isColumnNameTaken(name: string, except?: { name: string }): boolean {
+    const key = name.toLowerCase();
+    return this._board.columns.some(c => c !== except && c.name.toLowerCase() === key);
   }
 
   private _clampIndex(index: unknown, max: number): number {
