@@ -61,12 +61,13 @@ Use it when you want a lightweight project board that lives with your code, work
 - Group suggestions and tag chips in the task dialog, built from groups and tags already on the board.
 - Rename groups with a modal; all cards in that group are updated together.
 - Move whole groups with drag-and-drop.
-- Add, rename, reorder, and delete columns.
+- Add, rename, reorder, collapse, and delete columns. Collapsed columns, collapsed groups, and filters are remembered per board.
+- Auto-scrolling while dragging cards, groups, or columns near the board edge.
 - Task fields for description, tags, priority, workload, due date, assignee, and subtasks.
 - Source metadata links cards back to files and line numbers.
 - Explorer-style TODO tree for configured source comment keywords such as `TODO`, `FIXME`, `BUG`, `HACK`, and `NOTE`.
 - Add source TODO comments to a board as cards with source file and line details.
-- Priority strips, workload badges, overdue highlighting, and subtask progress.
+- Priority strips, workload badges, overdue and due-today highlighting, and subtask progress.
 - VS Code theme integration.
 - File watching for changes made outside the visual board.
 - Side-by-side raw Markdown view.
@@ -124,6 +125,8 @@ Board files also have an **Open Kanban Board** action in the Explorer and editor
 - The **Group** field suggests groups already used on the board; pick one or type a new name.
 - Tags already used on the board appear as chips below the **Tags** field; click one to add or remove it.
 - Archive and delete actions ask for confirmation, with an option to stop asking again for that action.
+- Press Escape to close any board dialog.
+- Cards due today show their due date in amber with a `(today)` marker; overdue cards are red.
 - Drag cards to reorder them or move them between columns and groups.
 - Use the blue dashed drop indicator to see where the card will land.
 - While dragging a card, group, or column, move the pointer near the edge of the board to scroll it.
@@ -144,7 +147,7 @@ Board files also have an **Open Kanban Board** action in the Explorer and editor
 - Completed-style columns are skipped. Default completed column globs are `Done`, `Closed`, `Shipped`, and `Archived`.
 - On the board, cards in completed columns are not marked red as overdue, counted in the **Overdue** summary stat, or matched by the overdue filter.
 - Configure completed column name globs with `mdKanban.completedColumnGlobs`; `*` and `?` wildcards are supported.
-- Click an overdue card to open its source Kanban board and show the card details view.
+- Click an overdue card to open its source Kanban board and show the card details view. If the card's column or group is collapsed, it is expanded so the card is visible.
 - Run **Kanban: Show Overdue Tasks** to focus the reminder list.
 
 Example completed column settings: 
@@ -160,7 +163,7 @@ Note: Add a `.vscode/settings.json` file in the project:
 
 - The **Calendar** side-panel view shows a compact month grid with dates.
 - Date cells show only the date, a dot, and task count; dates with overdue cards use a warning-colored dot.
-- Click a date cell to open the first card on that date in the source Kanban board and show the card details view.
+- Click a date cell to open the first card on that date in the source Kanban board and show the card details view. Collapsed columns and groups are expanded to show the card.
 - Use previous, next, and the icon-only Today button to move through months.
 - Use the view-title switcher next to refresh to switch between Calendar and Timeline modes; the icon changes with the target mode.
 - Timeline mode shows upcoming cards in collapsible tree groups for `Today`, `This Week`, `Next Week`, and `Later`.
@@ -186,8 +189,11 @@ Note: Add a `.vscode/settings.json` file in the project:
 - The Blank template creates an empty board with no columns; use **+ Add Column** to build it from scratch.
 - Click **+ Add Column** to create a column.
 - Click a column title to rename it.
+- Column names must be unique on a board, ignoring case: `To Do` and `to do` count as the same name. You can still rename a column to change only its casing.
 - Use the column drag handle (`::`) to reorder columns.
 - Click the collapse icon (`‹`) in a column header to shrink it to a narrow strip; click the strip to expand it again. Collapsed columns can still be dragged to reorder them, but cards and groups cannot be dropped into them.
+- Collapsed columns and groups, and the board filters, are remembered per board file, even after closing the board or reloading VS Code.
+- Click a chip in the **Cards by column** summary to scroll to that column, expanding it if it is collapsed.
 - Use the delete icon to remove a column and its tasks.
 
 ### Board Templates

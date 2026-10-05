@@ -9,13 +9,20 @@ All notable changes to the **MD Kanban** extension will be documented in this fi
 - Cards in completed columns (`mdKanban.completedColumnGlobs`) are no longer marked red as overdue on the board, counted in the **Overdue** summary stat, or matched by the **Overdue** quick chip and `Due: overdue` filter. Changing the setting updates open boards right away. Reported by [@dome23svw](https://github.com/dome23svw) ([#5](https://github.com/jebakumarj/md-kanban/issues/5)).
 - Renaming the board or a column now opens an in-board dialog instead of a browser prompt, which VS Code webviews do not show. **Add Column** shows validation messages inside its dialog instead of browser alerts.
 - A column can no longer be renamed to the name of another column on the same board. Column names are compared without regard to case for both renaming and **Add Column**, so `To Do` and `to do` count as the same name. A column can still be renamed to change only its own casing.
-- Opening a card from the Overdue Tasks or Calendar view now expands its column and group if they are collapsed, so the card is scrolled into view.
-- Collapsed columns and groups stay collapsed after the column or group is renamed.
+- Collapsed groups and board filters are no longer reset when the board is closed or VS Code is reloaded. They are saved per board file in workspace storage.
+- Collapsed groups stay collapsed after the group or its column is renamed.
+- Opening a card from the Overdue Tasks or Calendar view now expands its group if it is collapsed, so the card is scrolled into view.
 
 ### Added
 
-- Added collapsible columns. Use the `‹` icon in a column header to shrink a column to a narrow strip, and click the strip to expand it. Collapsed columns can still be reordered with their drag handle, but cards and groups cannot be dropped into them. Collapsed state is remembered for the open board. ([#5](https://github.com/jebakumarj/md-kanban/issues/5))
+- Added collapsible columns. Use the `‹` icon in a column header to shrink a column to a narrow strip, and click the strip to expand it. Collapsed columns can still be reordered with their drag handle, but cards and groups cannot be dropped into them. ([#5](https://github.com/jebakumarj/md-kanban/issues/5))
+  - Collapsed columns are remembered per board file, including after reloading VS Code, and stay collapsed when renamed.
+  - Opening a card from the Overdue Tasks or Calendar view expands its column.
+  - Deleting a column clears its collapsed state, so a new column with the same name does not start out collapsed.
 - The board now scrolls automatically while you drag a card, group, or column near its edge, so it can reach columns that are off screen. ([#5](https://github.com/jebakumarj/md-kanban/issues/5))
+- Click a chip in the **Cards by column** summary to scroll to that column. A collapsed column is expanded first.
+- Cards due today show their due date in amber with a `(today)` marker. Cards in completed columns are not marked.
+- Press Escape to close any board dialog, including the task, card details, and confirmation dialogs.
 
 ## [0.4.2] - 2026-09-13
 

@@ -10,6 +10,7 @@ import { OverdueTaskItem, OverdueTasksProvider } from './views/overdueTree';
 import { CodeTodoItem, CodeTodosProvider } from './views/todosTree';
 
 export function activate(context: vscode.ExtensionContext) {
+  KanbanPanel.setViewStateStore(context.workspaceState);
   const boardsProvider = new KanbanBoardsProvider();
   const todosProvider = new CodeTodosProvider(
     vscode.Uri.joinPath(context.extensionUri, 'src', 'image', 'todo-checked.svg')

@@ -4,6 +4,8 @@ import { KanbanBoard } from './kanbanParser';
 export interface WebviewBoardConfig {
   canArchiveCards: boolean;
   completedColumnGlobs: string[];
+  /** Saved collapsed columns, collapsed groups, and filters for this board file. */
+  viewState?: unknown;
 }
 
 export function getWebviewContent(
@@ -214,6 +216,13 @@ export function getWebviewContent(
       padding: 2px 5px;
       background: var(--card-bg);
       line-height: 1.2;
+      cursor: pointer;
+    }
+
+    .stat-column-chip:hover,
+    .stat-column-chip:focus-visible {
+      border-color: var(--accent);
+      outline: none;
     }
 
     .stat-column-name {
@@ -287,6 +296,15 @@ export function getWebviewContent(
 
     .column.dragging {
       opacity: 0.45;
+    }
+
+    .column.column-highlight {
+      animation: column-highlight 1.2s ease-out;
+    }
+
+    @keyframes column-highlight {
+      from { box-shadow: 0 0 0 2px var(--accent); }
+      to { box-shadow: 0 0 0 2px transparent; }
     }
 
     .column.collapsed {
@@ -498,6 +516,7 @@ export function getWebviewContent(
       margin-bottom: 4px;
     }
     .card-due.overdue { color: #e53935; opacity: 1; }
+    .card-due.due-today { color: #d9822b; opacity: 1; }
 
     .card-subtasks {
       font-size: 11px;

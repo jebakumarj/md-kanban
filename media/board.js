@@ -20,7 +20,10 @@
     deleteSubtask: false,
   };
   let textFilterTimer = 0;
-  const savedState = vscode.getState();
+  let viewStateTimer = 0;
+  // Webview state covers this session; boardConfig.viewState is what the extension saved
+  // for this board file, so collapsed columns and filters return after a reload.
+  const savedState = vscode.getState() || boardConfig.viewState;
   if (savedState && savedState.collapsedGroups) {
     collapsedGroups = savedState.collapsedGroups;
   }
@@ -178,6 +181,16 @@
     const chips = el('div', 'stat-column-chips');
     for (const column of columnCounts) {
       const chip = el('span', 'stat-column-chip');
+      chip.tabIndex = 0;
+      chip.setAttribute('role', 'button');
+      chip.title = 'Go to "' + column.name + '"';
+      chip.onclick = () => revealColumn(column.name);
+      chip.onkeydown = (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          revealColumn(column.name);
+        }
+      };
       const name = el('span', 'stat-column-name');
       name.textContent = column.name;
       chip.appendChild(name);
@@ -256,6 +269,11 @@
 
   function persistState() {
     vscode.setState({ collapsedGroups, collapsedColumns, filters, confirmationPrefs });
+    // Debounced because the search box persists on every keystroke.
+    window.clearTimeout(viewStateTimer);
+    viewStateTimer = window.setTimeout(() => {
+      vscode.postMessage({ type: 'saveViewState', state: { collapsedGroups, collapsedColumns, filters } });
+    }, 300);
   }
 
   function getAllTasks() {
@@ -413,6 +431,12 @@
     return !Number.isNaN(due.getTime()) && due < today;
   }
 
+  function isDueToday(dueDate, columnName, today) {
+    if (!dueDate || isCompletedColumn(columnName)) return false;
+    const due = new Date(dueDate + 'T00:00:00');
+    return due.getTime() === today.getTime();
+  }
+
   // Mirrors isCompletedColumnName/globMatches in the extension: case-insensitive,
   // whole-name match where * matches any run of characters and ? matches one.
   function isCompletedColumn(columnName) {
@@ -485,6 +509,19 @@
     render();
   }
 
+  // Scrolls a column into view, expanding it first if it is collapsed, and flashes it.
+  function revealColumn(columnName) {
+    if (collapsedColumns[columnName]) {
+      setColumnCollapsed(columnName, false);
+    }
+    const colEl = document.querySelector('.board .column[data-column="' + cssEscape(columnName) + '"]');
+    if (!colEl) return;
+    colEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    colEl.classList.remove('column-highlight');
+    void colEl.offsetWidth; // restart the animation on repeated clicks
+    colEl.classList.add('column-highlight');
+  }
+
   // A collapsed column is a narrow strip that can still be dragged to reorder columns,
   // but it is not a drop target for cards or groups. Its strip has no dragover handler
   // that calls preventDefault, so the browser shows a no-drop cursor over it.
@@ -552,6 +589,7 @@
         confirmText: 'Delete',
         danger: true,
       }, () => {
+        clearCollapsedColumnState(column);
         vscode.postMessage({ type: 'deleteColumn', name: column.name });
       });
     };
@@ -996,9 +1034,12 @@
     // Due date
     if (task.dueDate) {
       const due = el('div', 'card-due');
-      const overdue = isOverdue(task.dueDate, columnName, getToday());
+      const today = getToday();
+      const overdue = isOverdue(task.dueDate, columnName, today);
+      const dueToday = isDueToday(task.dueDate, columnName, today);
       if (overdue) due.classList.add('overdue');
-      due.textContent = '📅 ' + task.dueDate + (overdue ? ' (overdue)' : '');
+      if (dueToday) due.classList.add('due-today');
+      due.textContent = '📅 ' + task.dueDate + (overdue ? ' (overdue)' : dueToday ? ' (today)' : '');
       card.appendChild(due);
     }
 
@@ -1935,8 +1976,6 @@
       if (e.key === 'Enter') {
         e.preventDefault();
         saveBtn.click();
-      } else if (e.key === 'Escape') {
-        overlay.remove();
       }
     });
 
@@ -1975,6 +2014,15 @@
     persistState();
   }
 
+  // So a new column with a deleted column's name does not start out collapsed.
+  function clearCollapsedColumnState(column) {
+    delete collapsedColumns[column.name];
+    for (const groupName of new Set(column.tasks.map(t => t.group).filter(Boolean))) {
+      delete collapsedGroups[column.name + '::' + groupName];
+    }
+    persistState();
+  }
+
   function moveCollapsedGroupState(columnName, oldName, newName) {
     const oldKey = columnName + '::' + oldName;
     const newKey = columnName + '::' + newName;
@@ -1999,6 +2047,15 @@
     l.textContent = text;
     return l;
   }
+
+  // Escape closes the topmost dialog, e.g. a confirmation opened from the task dialog.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const overlays = document.querySelectorAll('.modal-overlay');
+    if (overlays.length === 0) return;
+    e.preventDefault();
+    overlays[overlays.length - 1].remove();
+  });
 
   // Listen for board updates from extension
   window.addEventListener('message', (event) => {

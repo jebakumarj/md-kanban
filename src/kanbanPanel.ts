@@ -8,6 +8,15 @@ import { getWebviewContent, WebviewBoardConfig } from './webviewContent';
 export class KanbanPanel {
   public static readonly viewType = 'mdKanban.boardView';
   private static panels: Map<string, KanbanPanel> = new Map();
+  private static viewStateStore: vscode.Memento | undefined;
+
+  /**
+   * Board view state (collapsed columns and groups, filters) is saved per board file in
+   * workspace storage, so it survives closing the board and reloading VS Code.
+   */
+  public static setViewStateStore(store: vscode.Memento) {
+    KanbanPanel.viewStateStore = store;
+  }
 
   private readonly _panel: vscode.WebviewPanel;
   private readonly _extensionUri: vscode.Uri;
@@ -321,6 +330,11 @@ export class KanbanPanel {
         break;
       }
 
+      case 'saveViewState': {
+        await KanbanPanel.viewStateStore?.update(this._viewStateKey(), message.state);
+        break;
+      }
+
       case 'openMarkdown': {
         const doc = await vscode.workspace.openTextDocument(this._fileUri);
         await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
@@ -420,7 +434,12 @@ export class KanbanPanel {
     return {
       canArchiveCards: !isArchiveBoardFile(this._fileUri),
       completedColumnGlobs: getCompletedColumnGlobs(),
+      viewState: KanbanPanel.viewStateStore?.get(this._viewStateKey()),
     };
+  }
+
+  private _viewStateKey(): string {
+    return 'mdKanban.viewState:' + this._fileUri.toString();
   }
 
   /** Pushes settings that affect board rendering to every open board. */
