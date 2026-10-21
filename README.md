@@ -47,7 +47,8 @@ Use it when you want a lightweight project board that lives with your code, work
 ## Features
 
 - Visual Kanban board for `.kanban.md` and `kanban.md` files.
-- MD Kanban Activity Bar view with board, TODO, overdue task, and calendar sections.
+- MD Kanban Activity Bar view with board, issue hierarchy, TODO, overdue task, and calendar sections.
+- Jira-style issue hierarchy: mark cards as epics, stories, tasks, bugs, sub-tasks, or sub-stories, link them to a parent on any board, and manage the whole tree in the **Issue Hierarchy** view.
 - Multiple boards per workspace; every `*.kanban.md` file and `kanban.md` file appears in the side panel. Board discovery excludes `node_modules`, `.direnv`, and `.git` by default; configure with `mdKanban.boardExclude`.
 - Board templates for Blank, Basic, Sprint, Bug Tracker, Release Checklist, and Personal workflows.
 - Filter and search board cards by text, assignee, tag, priority, workload, and due date.
@@ -172,6 +173,29 @@ Note: Add a `.vscode/settings.json` file in the project:
 - Completed-style columns are skipped using the same `mdKanban.completedColumnGlobs` setting as overdue and timeline scanning.
 - Run **Kanban: Show Calendar** to focus the calendar grid.
 
+
+### Issue Hierarchy
+
+Every card is an issue with a type: **Epic**, **Story**, **Task** (the default), **Bug**, **Sub-task**, or **Sub-story**. Issues nest the way they do in Jira:
+
+```
+Epic
+├── Story / Task / Bug
+│   └── Sub-task / Sub-story
+```
+
+- Set a card's **Type** and **Parent** in the board's add and edit task dialog. The parent list offers only cards that fit the hierarchy, from every board in the workspace, so an epic on one board can hold cards from other boards.
+- Cards show their type icon, a chip with their parent (click it to show the parent in the hierarchy), and how many child issues are done.
+- Open the **Issue Hierarchy** view from the **Issue Hierarchy** section of the MD Kanban side panel, from the hierarchy icon next to a board in **Kanban Boards**, from **⚡ Issue Hierarchy** on a board toolbar, or with **Kanban: Open Issue Hierarchy**.
+- The view lists epics with their stories, tasks, and bugs and their sub-tasks and sub-stories, then a **Not in an epic** section for everything without a parent. Each row shows status (the card's column), assignee, priority, due date, and progress.
+- Change an issue's status from the row's status menu; the card moves to that column on its board.
+- Create epics and child issues, edit issues, open them in their board, or delete them from the row actions.
+- Link existing cards to an epic or story with **🔗 Link existing card**, or drag a row onto a parent. Drop a row on **Not in an epic**, or use **⤴**, to unlink it.
+- Search, filter to one board, and hide done issues. Collapsed rows and filters are remembered.
+- A parent's progress counts its direct children in completed columns (`mdKanban.completedColumnGlobs`).
+- The **Issue Hierarchy** side-panel tree shows the same epics; click an issue to open it in the full view, or use the inline **Open in Board** action.
+- Deleting a parent keeps its children and clears their parent link. A link that no longer fits the hierarchy, for example after changing a story to a sub-task, is kept in the Markdown, and the card is shown under **Not in an epic** until it is fixed.
+- The task dialog's **Subtasks** checklist is separate from **Sub-task** cards: checklist items live inside one card, while sub-tasks are cards of their own with a status.
 
 ### Groups
 
@@ -389,6 +413,8 @@ Metadata is stored as HTML comments under a task.
 | `<!-- source: PATH:LINE -->` | Source file and line, for example `src/foo.ts:42` |
 | `<!-- group: NAME -->` | Explicit group assignment |
 | `<!-- group: -->` | Explicitly mark a task as ungrouped |
+| `<!-- type: VALUE -->` | `epic`, `story`, `bug`, `subtask`, `substory`; omitted for `task` |
+| `<!-- parent: ID -->` | `id` of the parent issue, which may be on another board |
 
 Other supported task content:
 
@@ -439,9 +465,11 @@ src/
   todo/               Workspace TODO scanning
   util/               Date, glob, and settings helpers
   views/              Side-panel tree and webview providers
+  hierarchy/          Issue hierarchy rules, workspace issue scan, and Issue Hierarchy panel
 media/
   board.js            Board webview script
   calendar.js         Calendar and Timeline side-panel script
+  hierarchy.js        Issue Hierarchy webview script
 ```
 
 Webview pages run under a Content-Security-Policy that blocks inline scripts, so

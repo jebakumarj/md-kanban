@@ -31,6 +31,7 @@
   ],
   "activationEvents": [
     "onView:md-kanban.boards",
+    "onView:md-kanban.hierarchy",
     "onView:md-kanban.codeTodos",
     "onView:md-kanban.overdueTasks",
     "onView:md-kanban.calendar",
@@ -44,7 +45,9 @@
     "onCommand:md-kanban.refreshTimeline",
     "onCommand:md-kanban.showTimeline",
     "onCommand:md-kanban.refreshCalendar",
-    "onCommand:md-kanban.showCalendar"
+    "onCommand:md-kanban.showCalendar",
+    "onCommand:md-kanban.openHierarchy",
+    "onCommand:md-kanban.refreshHierarchy"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -118,6 +121,24 @@
         "title": "Show Calendar",
         "category": "Kanban",
         "icon": "$(calendar)"
+      },
+      {
+        "command": "md-kanban.openHierarchy",
+        "title": "Open Issue Hierarchy",
+        "category": "Kanban",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "md-kanban.refreshHierarchy",
+        "title": "Refresh Issue Hierarchy",
+        "category": "Kanban",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "md-kanban.openIssueInBoard",
+        "title": "Open in Board",
+        "category": "Kanban",
+        "icon": "$(go-to-file)"
       }
     ],
     "viewsContainers": {
@@ -134,6 +155,10 @@
         {
           "id": "md-kanban.boards",
           "name": "Kanban Boards"
+        },
+        {
+          "id": "md-kanban.hierarchy",
+          "name": "Issue Hierarchy"
         },
         {
           "id": "md-kanban.codeTodos",
@@ -154,6 +179,10 @@
       {
         "view": "md-kanban.boards",
         "contents": "No kanban boards found.\n[Create a Kanban Board](command:md-kanban.createBoard)"
+      },
+      {
+        "view": "md-kanban.hierarchy",
+        "contents": "Organize cards as epics, stories, tasks, bugs, sub-tasks, and sub-stories.\n[Open Issue Hierarchy](command:md-kanban.openHierarchy)"
       },
       {
         "view": "md-kanban.codeTodos",
@@ -249,6 +278,16 @@
           "group": "navigation"
         },
         {
+          "command": "md-kanban.openHierarchy",
+          "when": "view == md-kanban.hierarchy",
+          "group": "navigation"
+        },
+        {
+          "command": "md-kanban.refreshHierarchy",
+          "when": "view == md-kanban.hierarchy",
+          "group": "navigation"
+        },
+        {
           "command": "md-kanban.refreshCodeTodos",
           "when": "view == md-kanban.codeTodos",
           "group": "navigation"
@@ -281,6 +320,16 @@
           "group": "inline"
         },
         {
+          "command": "md-kanban.openHierarchy",
+          "when": "view == md-kanban.boards && viewItem == kanbanBoard",
+          "group": "inline"
+        },
+        {
+          "command": "md-kanban.openIssueInBoard",
+          "when": "view == md-kanban.hierarchy && viewItem == hierarchyIssue",
+          "group": "inline"
+        },
+        {
           "command": "md-kanban.addTodoToBoard",
           "when": "view == md-kanban.codeTodos && viewItem == codeTodo",
           "group": "inline"
@@ -289,6 +338,10 @@
       "commandPalette": [
         {
           "command": "md-kanban.addTodoToBoard",
+          "when": "false"
+        },
+        {
+          "command": "md-kanban.openIssueInBoard",
           "when": "false"
         }
       ],
@@ -311,7 +364,7 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
-    "test": "npm run compile && node scripts/test-todo-matcher.js",
+    "test": "npm run compile && node scripts/test-todo-matcher.js && node scripts/test-issue-hierarchy.js",
     "watch": "tsc -watch -p ./"
   },
   "devDependencies": {
