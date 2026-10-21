@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { archiveTaskFromBoard } from './archive';
-import { parseMarkdown, serializeToMarkdown, KanbanBoard, generateId } from './kanbanParser';
+import { IssueIndexEntry, scanWorkspaceIssues, toIssueIndex, unlinkChildren } from './hierarchy/issues';
+import { parseMarkdown, serializeToMarkdown, KanbanBoard, generateId, ISSUE_TYPES, IssueType } from './kanbanParser';
 import { openTaskSource } from './source';
 import { getCompletedColumnGlobs } from './util/settings';
 import { getWebviewContent, WebviewBoardConfig } from './webviewContent';
@@ -22,6 +23,8 @@ export class KanbanPanel {
   private readonly _extensionUri: vscode.Uri;
   private readonly _fileUri: vscode.Uri;
   private _board: KanbanBoard;
+  private _issueIndex: IssueIndexEntry[] = [];
+  private static _issueIndexTimer: NodeJS.Timeout | undefined;
   private _disposables: vscode.Disposable[] = [];
 
   public static createOrShow(fileUri: vscode.Uri, extensionUri: vscode.Uri, taskId?: string) {
@@ -99,6 +102,7 @@ export class KanbanPanel {
     }
 
     this._panel.title = this._board.title;
+    this._issueIndex = await loadIssueIndex();
     try {
       this._panel.webview.html = getWebviewContent(
         this._panel.webview,
@@ -138,6 +142,8 @@ export class KanbanPanel {
             assignee: message.assignee || '',
             source: message.source || '',
             group: message.group || '',
+            issueType: toIssueType(message.issueType),
+            parentId: message.issueType === 'epic' ? '' : message.parentId || '',
           });
           await this._save();
           this._sendBoardUpdate();
@@ -159,6 +165,8 @@ export class KanbanPanel {
             task.assignee = message.assignee || '';
             task.source = message.source || '';
             task.group = message.group || '';
+            task.issueType = message.issueType === undefined ? task.issueType : toIssueType(message.issueType);
+            task.parentId = task.issueType === 'epic' ? '' : message.parentId ?? task.parentId;
             await this._save();
             this._sendBoardUpdate();
             break;
@@ -172,8 +180,15 @@ export class KanbanPanel {
           const idx = col.tasks.findIndex(t => t.id === message.taskId);
           if (idx !== -1) {
             col.tasks.splice(idx, 1);
+            for (const task of this._board.columns.flatMap(c => c.tasks)) {
+              if (task.parentId === message.taskId) {
+                task.parentId = '';
+              }
+            }
             await this._save();
             this._sendBoardUpdate();
+            const otherIssues = this._issueIndex.filter(issue => issue.boardUri !== this._fileUri.toString());
+            await unlinkChildren(message.taskId, otherIssues);
             break;
           }
         }
@@ -341,6 +356,14 @@ export class KanbanPanel {
         break;
       }
 
+      case 'openHierarchy': {
+        await vscode.commands.executeCommand('md-kanban.openHierarchy', {
+          boardUri: message.taskId ? undefined : this._fileUri.toString(),
+          focusId: message.taskId,
+        });
+        break;
+      }
+
       case 'openSource': {
         await openTaskSource(message.source, this._fileUri);
         break;
@@ -435,6 +458,8 @@ export class KanbanPanel {
       canArchiveCards: !isArchiveBoardFile(this._fileUri),
       completedColumnGlobs: getCompletedColumnGlobs(),
       viewState: KanbanPanel.viewStateStore?.get(this._viewStateKey()),
+      boardUri: this._fileUri.toString(),
+      issueIndex: this._issueIndex,
     };
   }
 
@@ -450,6 +475,23 @@ export class KanbanPanel {
         config: panel._getWebviewConfig(),
       });
     }
+  }
+
+  public static scheduleIssueIndexRefresh() {
+    if (KanbanPanel.panels.size === 0) {
+      return;
+    }
+    if (KanbanPanel._issueIndexTimer) {
+      clearTimeout(KanbanPanel._issueIndexTimer);
+    }
+    KanbanPanel._issueIndexTimer = setTimeout(async () => {
+      KanbanPanel._issueIndexTimer = undefined;
+      const index = await loadIssueIndex();
+      for (const panel of KanbanPanel.panels.values()) {
+        panel._issueIndex = index;
+        panel._panel.webview.postMessage({ type: 'issueIndex', issues: index });
+      }
+    }, 200);
   }
 
   private _sendBoardUpdate() {
@@ -479,6 +521,18 @@ export class KanbanPanel {
       if (d) { d.dispose(); }
     }
   }
+}
+
+async function loadIssueIndex(): Promise<IssueIndexEntry[]> {
+  try {
+    return toIssueIndex((await scanWorkspaceIssues()).issues);
+  } catch {
+    return [];
+  }
+}
+
+function toIssueType(value: unknown): IssueType {
+  return (ISSUE_TYPES as unknown[]).includes(value) ? value as IssueType : 'task';
 }
 
 function isArchiveBoardFile(uri: vscode.Uri): boolean {

@@ -21,6 +21,9 @@
   };
   let textFilterTimer = 0;
   let viewStateTimer = 0;
+  const ISSUE_TYPE_LABELS = { epic: 'Epic', story: 'Story', task: 'Task', bug: 'Bug', subtask: 'Sub-task', substory: 'Sub-story' };
+  const ISSUE_TYPE_GLYPHS = { epic: '⚡', story: 'S', task: '✓', bug: '●', subtask: '↳', substory: '↳' };
+  let allIssuesCache = null;
   // Webview state covers this session; boardConfig.viewState is what the extension saved
   // for this board file, so collapsed columns and filters return after a reload.
   const savedState = vscode.getState() || boardConfig.viewState;
@@ -40,6 +43,7 @@
   function render() {
     const app = document.getElementById('app');
     app.innerHTML = '';
+    allIssuesCache = null;
 
     // Toolbar
     const toolbar = el('div', 'toolbar');
@@ -50,6 +54,12 @@
     toolbar.appendChild(h1);
 
     const actions = el('div', 'toolbar-actions');
+    const hierarchyBtn = el('button', 'secondary');
+    hierarchyBtn.textContent = '⚡ Issue Hierarchy';
+    hierarchyBtn.title = 'Open epics, stories, sub-tasks, and sub-stories for this board';
+    hierarchyBtn.onclick = () => vscode.postMessage({ type: 'openHierarchy' });
+    actions.appendChild(hierarchyBtn);
+
     const mdBtn = el('button', 'secondary');
     mdBtn.textContent = '📄 View Markdown';
     mdBtn.onclick = () => vscode.postMessage({ type: 'openMarkdown' });
@@ -1014,8 +1024,29 @@
     });
 
     const titleEl = el('div', 'card-title');
-    titleEl.textContent = task.title;
+    const issueType = task.issueType || 'task';
+    if (issueType !== 'task') {
+      titleEl.appendChild(renderIssueTypeIcon(issueType));
+    }
+    titleEl.appendChild(document.createTextNode(task.title));
     card.appendChild(titleEl);
+
+    const parentIssue = getValidParentIssue(task);
+    if (parentIssue) {
+      const parentEl = el('button', 'card-parent');
+      parentEl.appendChild(renderIssueTypeIcon(parentIssue.issueType));
+      const parentTitle = el('span', 'card-parent-title');
+      parentTitle.textContent = parentIssue.title;
+      parentEl.appendChild(parentTitle);
+      parentEl.title = 'Parent ' + ISSUE_TYPE_LABELS[parentIssue.issueType].toLowerCase()
+        + (parentIssue.boardUri !== boardConfig.boardUri ? ' on ' + parentIssue.boardTitle : '')
+        + '. Click to show it in the Issue Hierarchy.';
+      parentEl.onclick = (e) => {
+        e.stopPropagation();
+        vscode.postMessage({ type: 'openHierarchy', taskId: parentIssue.id });
+      };
+      card.appendChild(parentEl);
+    }
 
     // Meta badges row (priority + workload)
     const meta = el('div', 'card-meta');
@@ -1061,6 +1092,14 @@
       sourceEl.textContent = '↗ ' + task.source;
       sourceEl.title = 'Use the source button to open this file';
       card.appendChild(sourceEl);
+    }
+
+    const childIssues = getChildIssues(task);
+    if (childIssues.length > 0) {
+      const doneChildren = childIssues.filter(issue => issue.done).length;
+      const childrenEl = el('div', 'card-children');
+      childrenEl.textContent = '⧉ ' + doneChildren + '/' + childIssues.length + ' child issues done';
+      card.appendChild(childrenEl);
     }
 
     // Subtasks - only show progress count
@@ -1143,6 +1182,19 @@
     appendDetail(modal, 'Column', columnName);
     if (task.group) appendDetail(modal, 'Group', task.group);
 
+    const parentIssue = getValidParentIssue(task);
+    const childIssues = getChildIssues(task);
+    const issueLines = ['Type: ' + ISSUE_TYPE_LABELS[task.issueType || 'task']];
+    if (parentIssue) {
+      issueLines.push('Parent: ' + ISSUE_TYPE_LABELS[parentIssue.issueType] + ' "' + parentIssue.title + '"'
+        + (parentIssue.boardUri !== boardConfig.boardUri ? ' (' + parentIssue.boardTitle + ')' : ''));
+    }
+    for (const child of childIssues) {
+      issueLines.push((child.done ? '✓ ' : '□ ') + ISSUE_TYPE_LABELS[child.issueType] + ': ' + child.title
+        + (child.boardUri !== boardConfig.boardUri ? ' (' + child.boardTitle + ')' : ''));
+    }
+    appendDetail(modal, 'Issue', issueLines.join('\n'));
+
     const metaValues = [];
     metaValues.push('Priority: ' + formatFilterLabel(task.priority || 'medium'));
     metaValues.push('Workload: ' + formatFilterLabel(task.workload || 'normal'));
@@ -1190,6 +1242,14 @@
       openTaskModal(task, columnName);
     };
     actions.appendChild(editBtn);
+
+    const hierarchyBtn = el('button', 'secondary');
+    hierarchyBtn.textContent = 'Show in Hierarchy';
+    hierarchyBtn.onclick = () => {
+      overlay.remove();
+      vscode.postMessage({ type: 'openHierarchy', taskId: task.id });
+    };
+    actions.appendChild(hierarchyBtn);
 
     if (task.source) {
       const sourceBtn = el('button', 'secondary');
@@ -1606,6 +1666,50 @@
     titleInput.placeholder = 'Task title...';
     modal.appendChild(titleInput);
 
+    const issueRow = el('div', 'form-row');
+    const typeCol = el('div', 'form-col');
+    typeCol.appendChild(labelEl('Type'));
+    const typeSelect = document.createElement('select');
+    for (const type of Object.keys(ISSUE_TYPE_LABELS)) {
+      const opt = document.createElement('option');
+      opt.value = type;
+      opt.textContent = ISSUE_TYPE_LABELS[type];
+      typeSelect.appendChild(opt);
+    }
+    typeSelect.value = existingTask ? (existingTask.issueType || 'task') : 'task';
+    typeCol.appendChild(typeSelect);
+    issueRow.appendChild(typeCol);
+
+    const parentCol = el('div', 'form-col');
+    parentCol.appendChild(labelEl('Parent'));
+    const parentSelect = document.createElement('select');
+    parentCol.appendChild(parentSelect);
+    issueRow.appendChild(parentCol);
+    modal.appendChild(issueRow);
+
+    function fillParentOptions() {
+      const type = typeSelect.value;
+      const current = parentSelect.value || (existingTask ? existingTask.parentId || '' : '');
+      parentSelect.innerHTML = '';
+      const none = document.createElement('option');
+      none.value = '';
+      none.textContent = type === 'epic' ? 'Epics have no parent' : getIssueLevel(type) === 2 ? '(none) - pick a story, task, or bug' : '(none) - pick an epic';
+      parentSelect.appendChild(none);
+      for (const issue of getAllIssues()) {
+        if ((existingTask && issue.id === existingTask.id) || !canBeParentOf(issue.issueType, type)) continue;
+        const opt = document.createElement('option');
+        opt.value = issue.id;
+        opt.textContent = ISSUE_TYPE_LABELS[issue.issueType] + ': ' + issue.title
+          + (issue.boardUri !== boardConfig.boardUri ? ' — ' + issue.boardTitle : '');
+        parentSelect.appendChild(opt);
+      }
+      parentSelect.value = current;
+      if (parentSelect.value !== current) parentSelect.value = '';
+      parentSelect.disabled = type === 'epic';
+    }
+    typeSelect.onchange = fillParentOptions;
+    fillParentOptions();
+
     modal.appendChild(labelEl('Description'));
     const descInput = el('textarea');
     descInput.value = existingTask ? existingTask.description : '';
@@ -1816,6 +1920,8 @@
           assignee: assigneeInput.value.trim(),
           source: sourceInput.value.trim(),
           group: groupInput.value.trim(),
+          issueType: typeSelect.value,
+          parentId: typeSelect.value === 'epic' ? '' : parentSelect.value,
         });
       } else {
         vscode.postMessage({
@@ -1831,6 +1937,8 @@
           assignee: assigneeInput.value.trim(),
           source: sourceInput.value.trim(),
           group: groupInput.value.trim(),
+          issueType: typeSelect.value,
+          parentId: typeSelect.value === 'epic' ? '' : parentSelect.value,
         });
       }
       overlay.remove();
@@ -2036,6 +2144,57 @@
 
   // --- Helpers ---
 
+  function getIssueLevel(type) {
+    if (type === 'epic') return 0;
+    if (type === 'subtask' || type === 'substory') return 2;
+    return 1;
+  }
+
+  function canBeParentOf(parentType, childType) {
+    return getIssueLevel(parentType) + 1 === getIssueLevel(childType);
+  }
+
+  function getAllIssues() {
+    if (allIssuesCache) return allIssuesCache;
+    const local = [];
+    for (const column of board.columns) {
+      for (const task of column.tasks) {
+        local.push({
+          id: task.id,
+          title: task.title,
+          issueType: task.issueType || 'task',
+          parentId: task.parentId || '',
+          done: isCompletedColumn(column.name),
+          boardUri: boardConfig.boardUri,
+          boardTitle: board.title,
+          column: column.name,
+        });
+      }
+    }
+    const others = (boardConfig.issueIndex || []).filter(issue => issue.boardUri !== boardConfig.boardUri);
+    allIssuesCache = local.concat(others);
+    return allIssuesCache;
+  }
+
+  function getValidParentIssue(task) {
+    if (!task.parentId) return undefined;
+    const parent = getAllIssues().find(issue => issue.id === task.parentId);
+    return parent && canBeParentOf(parent.issueType, task.issueType || 'task') ? parent : undefined;
+  }
+
+  function getChildIssues(task) {
+    const type = task.issueType || 'task';
+    if (getIssueLevel(type) === 2) return [];
+    return getAllIssues().filter(issue => issue.parentId === task.id && canBeParentOf(type, issue.issueType));
+  }
+
+  function renderIssueTypeIcon(type) {
+    const icon = el('span', 'issue-type-icon issue-type-' + type);
+    icon.textContent = ISSUE_TYPE_GLYPHS[type] || '?';
+    icon.title = ISSUE_TYPE_LABELS[type] || type;
+    return icon;
+  }
+
   function el(tag, className) {
     const e = document.createElement(tag);
     if (className) e.className = className;
@@ -2065,6 +2224,9 @@
       render();
     } else if (msg.type === 'configUpdate') {
       boardConfig = { ...boardConfig, ...msg.config };
+      render();
+    } else if (msg.type === 'issueIndex') {
+      boardConfig = { ...boardConfig, issueIndex: msg.issues };
       render();
     } else if (msg.type === 'openTaskDetails') {
       openTaskDetailsById(msg.taskId);

@@ -1,6 +1,9 @@
 export type Priority = 'critical' | 'high' | 'medium' | 'low';
 export type Workload = 'easy' | 'normal' | 'hard' | 'extreme';
 
+export type IssueType = 'epic' | 'story' | 'task' | 'bug' | 'subtask' | 'substory';
+export const ISSUE_TYPES: IssueType[] = ['epic', 'story', 'task', 'bug', 'subtask', 'substory'];
+
 export interface SubTask {
   title: string;
   done: boolean;
@@ -18,6 +21,8 @@ export interface KanbanTask {
   assignee: string;
   source: string;
   group: string;
+  issueType: IssueType;
+  parentId: string;
 }
 
 export interface KanbanColumn {
@@ -158,6 +163,8 @@ export function parseMarkdown(content: string): KanbanBoard {
         assignee: '',
         source: '',
         group: currentGroup,
+        issueType: 'task',
+        parentId: '',
       };
       continue;
     }
@@ -182,6 +189,10 @@ export function parseMarkdown(content: string): KanbanBoard {
           currentTask.source = val;
         } else if (key === 'group') {
           currentTask.group = val;
+        } else if (key === 'type' && (ISSUE_TYPES as string[]).includes(val)) {
+          currentTask.issueType = val as IssueType;
+        } else if (key === 'parent') {
+          currentTask.parentId = val;
         }
         continue;
       }
@@ -254,6 +265,12 @@ function serializeTask(lines: string[], task: KanbanTask, needsGroupOverride = f
   }
   if (task.source) {
     lines.push(`<!-- source: ${task.source} -->`);
+  }
+  if (task.issueType && task.issueType !== 'task') {
+    lines.push(`<!-- type: ${task.issueType} -->`);
+  }
+  if (task.parentId) {
+    lines.push(`<!-- parent: ${task.parentId} -->`);
   }
   lines.push('');
 }

@@ -2,6 +2,15 @@
 
 All notable changes to the **MD Kanban** extension will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- Added a Jira-style issue hierarchy. Cards can be an **Epic**, **Story**, **Task**, **Bug**, **Sub-task**, or **Sub-story**, and can be linked to a parent card on any board in the workspace: epics hold stories, tasks, and bugs, which hold sub-tasks and sub-stories. Stored as `<!-- type: ... -->` and `<!-- parent: ... -->` card metadata; existing cards are tasks and are unchanged.
+- Added the **Issue Hierarchy** view, which shows epics, their child issues, and their sub-tasks and sub-stories with status, assignee, priority, due date, and progress. Create, edit, link, unlink, and delete issues there, change status from the row, or drag a row onto a parent to link it. Search, filter by board, and hide done issues.
+- Added an **Issue Hierarchy** section to the MD Kanban side panel, an inline hierarchy action on each board in **Kanban Boards**, an **⚡ Issue Hierarchy** board toolbar button, and the **Kanban: Open Issue Hierarchy** command.
+- The board task dialog has **Type** and **Parent** fields. Cards show their type icon, a parent chip that opens the parent in the hierarchy, and child issue progress. Card details list the parent and children and add **Show in Hierarchy**.
+
 ## [0.4.3] - 2026-10-05
 
 ### Fixed

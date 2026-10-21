@@ -2,16 +2,20 @@ import * as vscode from 'vscode';
 import { addTodoToBoard, createNewBoard } from './boardCommands';
 import { findKanbanBoards, getActiveBoardUri } from './boards/boardFiles';
 import { OverdueTask } from './boards/datedTasks';
+import { HierarchyPanel, HierarchyShowOptions } from './hierarchy/hierarchyPanel';
 import { KanbanPanel } from './kanbanPanel';
 import { CodeTodo } from './todo/todoScanner';
 import { KanbanBoardItem, KanbanBoardsProvider, getBoardUriFromTarget } from './views/boardsTree';
 import { CalendarWebviewProvider } from './views/calendarView';
+import { HierarchyTreeProvider, IssueTreeItem } from './views/hierarchyTree';
 import { OverdueTaskItem, OverdueTasksProvider } from './views/overdueTree';
 import { CodeTodoItem, CodeTodosProvider } from './views/todosTree';
 
 export function activate(context: vscode.ExtensionContext) {
   KanbanPanel.setViewStateStore(context.workspaceState);
+  HierarchyPanel.setViewStateStore(context.workspaceState);
   const boardsProvider = new KanbanBoardsProvider();
+  const hierarchyProvider = new HierarchyTreeProvider();
   const todosProvider = new CodeTodosProvider(
     vscode.Uri.joinPath(context.extensionUri, 'src', 'image', 'todo-checked.svg')
   );
@@ -22,6 +26,12 @@ export function activate(context: vscode.ExtensionContext) {
     showCollapseAll: false,
   });
   context.subscriptions.push(boardsView);
+
+  const hierarchyView = vscode.window.createTreeView('md-kanban.hierarchy', {
+    treeDataProvider: hierarchyProvider,
+    showCollapseAll: true,
+  });
+  context.subscriptions.push(hierarchyView);
 
   const todosView = vscode.window.createTreeView('md-kanban.codeTodos', {
     treeDataProvider: todosProvider,
@@ -39,22 +49,22 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.registerWebviewViewProvider('md-kanban.calendar', calendarProvider)
   );
 
+  const refreshIssueViews = () => {
+    hierarchyProvider.refresh();
+    HierarchyPanel.scheduleRefresh();
+    KanbanPanel.scheduleIssueIndexRefresh();
+  };
+  const refreshBoardViews = () => {
+    boardsProvider.refresh();
+    overdueProvider.refresh();
+    calendarProvider.refresh();
+    refreshIssueViews();
+  };
+
   const boardWatcher = vscode.workspace.createFileSystemWatcher('**/*kanban.md');
-  boardWatcher.onDidCreate(() => {
-    boardsProvider.refresh();
-    overdueProvider.refresh();
-    calendarProvider.refresh();
-  });
-  boardWatcher.onDidDelete(() => {
-    boardsProvider.refresh();
-    overdueProvider.refresh();
-    calendarProvider.refresh();
-  });
-  boardWatcher.onDidChange(() => {
-    boardsProvider.refresh();
-    overdueProvider.refresh();
-    calendarProvider.refresh();
-  });
+  boardWatcher.onDidCreate(refreshBoardViews);
+  boardWatcher.onDidDelete(refreshBoardViews);
+  boardWatcher.onDidChange(refreshBoardViews);
   context.subscriptions.push(boardWatcher);
 
   const codeWatcher = vscode.workspace.createFileSystemWatcher('**/*');
@@ -77,12 +87,11 @@ export function activate(context: vscode.ExtensionContext) {
         overdueProvider.refresh();
         calendarProvider.refresh();
         KanbanPanel.refreshConfig();
+        refreshIssueViews();
       }
 
       if (event.affectsConfiguration('mdKanban.boardExclude')) {
-        boardsProvider.refresh();
-        overdueProvider.refresh();
-        calendarProvider.refresh();
+        refreshBoardViews();
       }
     })
   );
@@ -143,6 +152,34 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(
     vscode.commands.registerCommand('md-kanban.refreshBoards', () => boardsProvider.refresh())
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('md-kanban.openHierarchy', (target?: vscode.Uri | KanbanBoardItem | HierarchyShowOptions) => {
+      const boardUri = target instanceof vscode.Uri || target instanceof KanbanBoardItem
+        ? getBoardUriFromTarget(target)?.toString()
+        : target?.boardUri;
+      const focusId = target && !(target instanceof vscode.Uri) && !(target instanceof KanbanBoardItem)
+        ? target.focusId
+        : undefined;
+      HierarchyPanel.createOrShow(context.extensionUri, { boardUri, focusId });
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('md-kanban.refreshHierarchy', () => {
+      hierarchyProvider.refresh();
+      HierarchyPanel.scheduleRefresh();
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('md-kanban.openIssueInBoard', (target: IssueTreeItem) => {
+      const issue = target?.node?.issue;
+      if (issue) {
+        KanbanPanel.createOrShow(vscode.Uri.parse(issue.boardUri), context.extensionUri, issue.id);
+      }
+    })
   );
 
   context.subscriptions.push(

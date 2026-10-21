@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { IssueIndexEntry } from './hierarchy/issues';
 import { KanbanBoard } from './kanbanParser';
 
 export interface WebviewBoardConfig {
@@ -6,6 +7,8 @@ export interface WebviewBoardConfig {
   completedColumnGlobs: string[];
   /** Saved collapsed columns, collapsed groups, and filters for this board file. */
   viewState?: unknown;
+  boardUri?: string;
+  issueIndex?: IssueIndexEntry[];
 }
 
 export function getWebviewContent(
@@ -1092,6 +1095,49 @@ export function getWebviewContent(
 
     .board-notice.error {
       background: var(--danger);
+    }
+
+    .issue-type-icon {
+      display: inline-block;
+      width: 15px;
+      height: 15px;
+      margin-right: 5px;
+      border-radius: 3px;
+      color: #fff;
+      font-size: 9px;
+      font-weight: 700;
+      line-height: 15px;
+      text-align: center;
+      vertical-align: 1px;
+    }
+    .issue-type-epic { background: #904ee2; }
+    .issue-type-story { background: #63ba3c; }
+    .issue-type-task { background: #4bade8; }
+    .issue-type-bug { background: #e5493a; }
+    .issue-type-subtask { background: transparent; color: #4bade8; border: 1.5px solid #4bade8; line-height: 12px; }
+    .issue-type-substory { background: transparent; color: #63ba3c; border: 1.5px solid #63ba3c; line-height: 12px; }
+
+    .card-parent {
+      display: flex;
+      align-items: center;
+      max-width: 100%;
+      margin: 2px 0 6px;
+      padding: 1px 6px 1px 2px;
+      background: transparent;
+      color: var(--fg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      font-size: 11px;
+      opacity: 0.85;
+    }
+    .card-parent-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .card-parent:hover { background: var(--input-bg); opacity: 1; }
+    .card-parent .issue-type-icon { width: 13px; height: 13px; font-size: 8px; line-height: 13px; margin-right: 4px; flex-shrink: 0; }
+
+    .card-children {
+      font-size: 11px;
+      opacity: 0.7;
+      margin-top: 4px;
     }
   </style>
 </head>

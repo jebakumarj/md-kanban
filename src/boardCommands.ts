@@ -122,6 +122,8 @@ export async function addTodoToBoard(todo: CodeTodo): Promise<{ boardUri: vscode
     assignee: '',
     source: `${todo.relativePath}:${todo.line}`,
     group: '',
+    issueType: 'task',
+    parentId: '',
   });
 
   await vscode.workspace.fs.writeFile(boardUri, Buffer.from(serializeToMarkdown(board), 'utf-8'));
